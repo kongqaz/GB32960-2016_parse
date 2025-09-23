@@ -48,7 +48,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     private Thread mqttSenderThread;
 
     // 会话信息
-    private String vin; // 车辆识别码
+//    private String vin; // 车辆识别码
     private boolean authenticated = false;
 
     public Gb32960ProtocolHandler(Config config) {
@@ -194,7 +194,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         // 解析消息头 (注意索引都向后移动一位，因为起始符变为两个字节)
         byte command = data[2]; // 命令标识
         byte response = data[3]; // 应答标识
-        String vin = new String(data, 4, 17, StandardCharsets.US_ASCII).trim(); // VIN码
+        String vin = new String(data, 4, 17, StandardCharsets.ISO_8859_1).trim(); // VIN码
         byte encryption = data[21]; // 加密方式
         int dataLength = ((data[22] & 0xFF) << 8) | (data[23] & 0xFF); // 数据单元长度
 
@@ -219,30 +219,30 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 保存VIN码
-        this.vin = vin;
+//        this.vin = vin;
 
         // 根据命令类型处理 (偏移量增加1，且需要排除校验码)
         switch (command) {
             case COMMAND_PLATFORM_LOGIN:
-                handlePlatformLogin(ctx, data, 24, dataLength);
+                handlePlatformLogin(ctx, data, 24, dataLength, vin);
                 break;
             case 0x01: // 车辆登入
-                handleVehicleLogin(ctx, data, 24, dataLength);
+                handleVehicleLogin(ctx, data, 24, dataLength, vin);
                 break;
             case 0x02: // 实时信息上报
-                handleRealTimeData(data, 24, dataLength);
+                handleRealTimeData(data, 24, dataLength, vin);
                 break;
             case 0x03: // 补发信息上报
-                handleResendData(data, 24, dataLength);
+                handleResendData(data, 24, dataLength, vin);
                 break;
             case 0x04: // 车辆登出
-                handleVehicleLogout(ctx, data, 24, dataLength);
+                handleVehicleLogout(ctx, data, 24, dataLength, vin);
                 break;
             case 0x06: // 平台登出
                 handlePlatformLogout(ctx, data, 24, dataLength);
                 break;
             case 0x07: // 心跳
-                handleHeartbeat(ctx);
+                handleHeartbeat(ctx, vin);
                 break;
             default:
                 logger.error("未知命令类型: 0x{}", String.format("%02X", command));
@@ -260,17 +260,17 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 处理平台登录
      */
-    private void handlePlatformLogin(ChannelHandlerContext ctx, byte[] data, int offset, int length) {
+    private void handlePlatformLogin(ChannelHandlerContext ctx, byte[] data, int offset, int length, String vin) {
         if (length < 3) {
             logger.error("平台登录数据长度不足");
-            sendPlatformLoginResponse(ctx, (byte) 0x01); // 失败
+            sendPlatformLoginResponse(ctx, (byte) 0x01, vin); // 失败
             return;
         }
 
         // 提取登录信息
-        String username = new String(data, offset, 8, StandardCharsets.US_ASCII).trim();
-        String password = new String(data, offset + 8, 8, StandardCharsets.US_ASCII).trim();
-        String uniqueCode = new String(data, offset + 16, length - 16, StandardCharsets.US_ASCII).trim();
+        String username = new String(data, offset, 8, StandardCharsets.ISO_8859_1).trim();
+        String password = new String(data, offset + 8, 8, StandardCharsets.ISO_8859_1).trim();
+        String uniqueCode = new String(data, offset + 16, length - 16, StandardCharsets.ISO_8859_1).trim();
 
         String expectedUsername = config.getString("gb32960.platform.username");
         String expectedPassword = config.getString("gb32960.platform.password");
@@ -284,28 +284,31 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             expectedUniqueCode.equals(uniqueCode)) {
             authenticated = true;
             logger.info("平台登录成功");
-            sendPlatformLoginResponse(ctx, (byte) 0x00); // 成功
+            sendPlatformLoginResponse(ctx, (byte) 0x00, vin); // 成功
         } else {
             logger.error("平台登录失败 - 用户名或密码错误");
             authenticated = false;
-            sendPlatformLoginResponse(ctx, (byte) 0x01); // 失败
+            sendPlatformLoginResponse(ctx, (byte) 0x01, vin); // 失败
         }
     }
 
     /**
      * 发送平台登录响应
      */
-    private void sendPlatformLoginResponse(ChannelHandlerContext ctx, byte result) {
-        byte[] response = new byte[24]; // 增加1字节以容纳第二个起始符
+    private void sendPlatformLoginResponse(ChannelHandlerContext ctx, byte result, String vin) {
+        byte[] response = new byte[26]; // 25字节数据 + 1字节校验码
         response[0] = START_DELIMITER_1; // 起始符1
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x05; // 命令标识(平台登录)
         response[3] = 0x01; // 应答标识
-        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.US_ASCII), 0, response, 4, 17); // VIN
+        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17); // VIN
         response[21] = ENCRYPTION_NONE; // 加密方式
         response[22] = 0x00; // 数据单元长度高字节
         response[23] = 0x01; // 数据单元长度低字节
         response[24] = result; // 执行结果
+
+        // 计算并添加校验码 (从命令标识到数据单元末尾的所有字节异或)
+        response[25] = calculateBcc(response, 2, 25); // 从索引2(命令标识)到索引24(数据单元末尾)
 
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
         logger.debug("发送平台登录响应: {}", bytesToHex(response));
@@ -314,7 +317,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 处理车辆登录
      */
-    private void handleVehicleLogin(ChannelHandlerContext ctx, byte[] data, int offset, int length) {
+    private void handleVehicleLogin(ChannelHandlerContext ctx, byte[] data, int offset, int length, String vin) {
         if (!authenticated) {
             logger.error("未认证的车辆登录请求");
             return;
@@ -334,12 +337,12 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         byte loginResult = 0x00; // 成功
 
         // 构造响应消息
-        byte[] response = new byte[25]; // 增加1字节以容纳第二个起始符
+        byte[] response = new byte[30];
         response[0] = START_DELIMITER_1; // 起始符1
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x01; // 命令标识(车辆登录)
         response[3] = 0x01; // 应答标识
-        System.arraycopy(String.format("%-17s", vin).getBytes(StandardCharsets.US_ASCII), 0, response, 4, 17);
+        System.arraycopy(String.format("%-17s", vin).getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
         response[21] = ENCRYPTION_NONE;
         response[22] = 0x00;
         response[23] = 0x02;
@@ -349,6 +352,9 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[27] = (byte) (timestamp >> 8);
         response[28] = (byte) timestamp;
 
+        // 计算并添加校验码
+        response[29] = calculateBcc(response, 2, 29);
+
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
         logger.info("车辆登录成功: {}", vin);
     }
@@ -356,7 +362,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 处理实时数据
      */
-    private void handleRealTimeData(byte[] data, int offset, int length) {
+    private void handleRealTimeData(byte[] data, int offset, int length, String vin) {
         if (!authenticated) {
             logger.error("未认证的实时数据上报");
             return;
@@ -383,7 +389,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 处理补发数据
      */
-    private void handleResendData(byte[] data, int offset, int length) {
+    private void handleResendData(byte[] data, int offset, int length, String vin) {
         if (!authenticated) {
             logger.error("未认证的补发数据上报");
             return;
@@ -410,7 +416,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 处理车辆登出
      */
-    private void handleVehicleLogout(ChannelHandlerContext ctx, byte[] data, int offset, int length) {
+    private void handleVehicleLogout(ChannelHandlerContext ctx, byte[] data, int offset, int length, String vin) {
         if (!authenticated) {
             logger.error("未认证的车辆登出请求");
             return;
@@ -432,7 +438,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 处理心跳
      */
-    private void handleHeartbeat(ChannelHandlerContext ctx) {
+    private void handleHeartbeat(ChannelHandlerContext ctx, String vin) {
         if (!authenticated) {
             logger.error("未认证的心跳请求");
             return;
@@ -444,7 +450,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x07; // 命令标识(心跳)
         response[3] = 0x01; // 应答标识
-        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.US_ASCII), 0, response, 4, 17);
+        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
         response[21] = ENCRYPTION_NONE;
         response[22] = 0x00;
         response[23] = 0x00;
