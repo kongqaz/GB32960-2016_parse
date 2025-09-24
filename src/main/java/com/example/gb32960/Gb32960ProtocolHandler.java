@@ -1,5 +1,6 @@
 package com.example.gb32960;
 
+import com.example.service.DatabaseService;
 import com.typesafe.config.Config;
 //import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -51,8 +52,11 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 //    private String vin; // 车辆识别码
     private boolean authenticated = false;
 
+    private DatabaseService databaseService;
+
     public Gb32960ProtocolHandler(Config config) {
         this.config = config;
+        this.databaseService = DatabaseService.getInstance();
 //        this.mqttTopic = config.getString("gb32960.mqtt.topic");
 //        this.mqttQos = config.getInt("gb32960.mqtt.qos");
 
@@ -370,20 +374,27 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         try {
             // 解析实时数据
             String parsedData = parseRealTimeData(data, offset, length);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            // 格式化当前时间
+            String formattedTime = LocalDateTime.now().format(formatter);
             // 构造JSON数据
             StringBuilder jsonBuilder = new StringBuilder();
             jsonBuilder.append("{");
             jsonBuilder.append("\"vin\":\"").append(vin).append("\",");
-            jsonBuilder.append("\"timestamp\":\"").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\",");
+//            jsonBuilder.append("\"timestamp\":\"").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\",");
+            jsonBuilder.append("\"timestamp\":\"").append(formattedTime).append("\",");
             jsonBuilder.append("\"dataType\":\"realtime\",");
             jsonBuilder.append("\"data\":").append(parsedData);
             jsonBuilder.append("}");
+
+            String jsonData = jsonBuilder.toString();
+            databaseService.saveRealTimeData(vin, jsonData, formattedTime);
 
             // 添加到发送队列
 //            dataQueue.offer(jsonBuilder.toString());
             logger.debug("处理实时数据: {} 字节", length);
             loggerDebug.info("实时数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
-            loggerDebug.info("实时数据解析后: {}", jsonBuilder.toString());
+            loggerDebug.info("实时数据解析后: {}", jsonData);
         } catch (Exception e) {
             logger.error("处理实时数据异常", e);
         }
@@ -613,20 +624,26 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         try {
             // 解析补发数据
             String parsedData = parseRealTimeData(data, offset, length);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            // 格式化当前时间
+            String formattedTime = LocalDateTime.now().format(formatter);
             // 构造JSON数据
             StringBuilder jsonBuilder = new StringBuilder();
             jsonBuilder.append("{");
             jsonBuilder.append("\"vin\":\"").append(vin).append("\",");
-            jsonBuilder.append("\"timestamp\":\"").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\",");
+            jsonBuilder.append("\"timestamp\":\"").append(formattedTime).append("\",");
             jsonBuilder.append("\"dataType\":\"resend\",");
             jsonBuilder.append("\"data\":").append(parsedData);
             jsonBuilder.append("}");
+
+            String jsonData = jsonBuilder.toString();
+            databaseService.saveRealTimeData(vin, jsonData, formattedTime);
 
             // 添加到发送队列
 //            dataQueue.offer(jsonBuilder.toString());
             logger.debug("处理补发数据: {} 字节", length);
             loggerDebug.info("补发数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
-            loggerDebug.info("补发数据解析后: {}", jsonBuilder.toString());
+            loggerDebug.info("补发数据解析后: {}", jsonData);
         } catch (Exception e) {
             logger.error("处理补发数据异常", e);
         }

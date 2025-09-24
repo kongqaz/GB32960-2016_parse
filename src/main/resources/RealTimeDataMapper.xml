@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.gb32960.mapper.RealTimeDataMapper">
+
+    <resultMap id="RealTimeDataResultMap" type="com.example.entity.RealTimeData">
+        <result property="id" column="id"/>
+        <result property="vin" column="vin"/>
+        <result property="jsonData" column="json_data"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 创建表 -->
+    <update id="createTable">
+        CREATE TABLE IF NOT EXISTS real_time_data (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            vin VARCHAR(50) NOT NULL UNIQUE,
+            json_data TEXT NOT NULL,
+            update_time VARCHAR(20) NOT NULL,
+            INDEX idx_vin (vin)
+        )
+    </update>
+
+    <!-- 插入或更新实时数据 -->
+    <insert id="insertOrUpdate" parameterType="com.example.entity.RealTimeData">
+        INSERT INTO real_time_data (vin, json_data, update_time)
+        VALUES (#{vin}, #{jsonData}, #{updateTime})
+        ON DUPLICATE KEY UPDATE
+        json_data = VALUES(json_data),
+        update_time = VALUES(update_time)
+    </insert>
+
+    <!-- 根据VIN查询实时数据 -->
+    <select id="selectByVin" parameterType="string" resultMap="RealTimeDataResultMap">
+        SELECT id, vin, json_data, update_time
+        FROM real_time_data
+        WHERE vin = #{vin}
+    </select>
+
+    <!-- 查询所有实时数据 -->
+    <select id="selectAll" resultMap="RealTimeDataResultMap">
+        SELECT id, vin, json_data, update_time
+        FROM real_time_data
+    </select>
+
+</mapper>

@@ -1,6 +1,7 @@
 package com.example;
 
 import com.example.gb32960.Gb32960ChannelInitializer;
+import com.example.service.HttpService;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.netty.bootstrap.ServerBootstrap;
@@ -21,6 +22,7 @@ public class Gb32960ParserApplication {
     private final Config config;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private HttpService httpService;
 
     public Gb32960ParserApplication() {
         this.config = ConfigFactory.load();
@@ -47,6 +49,12 @@ public class Gb32960ParserApplication {
             ChannelFuture future = bootstrap.bind(host, port).sync();
             logger.info("GB32960协议解析器启动成功，监听地址: {}:{}", host, port);
 
+            // 启动HTTP服务
+            httpService = new HttpService();
+            int httpPort = config.hasPath("gb32960.http.port") ? config.getInt("gb32960.http.port") : 8080;
+            httpService.start(httpPort);
+            logger.info("HTTP服务启动成功，监听地址: {}:{}", host, httpPort);
+
             // 等待服务器socket关闭
             future.channel().closeFuture().sync();
         } finally {
@@ -63,6 +71,8 @@ public class Gb32960ParserApplication {
             workerGroup.shutdownGracefully();
         }
         logger.info("GB32960协议解析器已关闭");
+        httpService.stop();
+        logger.info("httpService已关闭");
     }
 
     public static void main(String[] args) {
