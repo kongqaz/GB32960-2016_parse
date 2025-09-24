@@ -1,17 +1,17 @@
 package com.example.gb32960;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
-import io.netty.buffer.ByteBuf;
+//import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+//import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
-import org.eclipse.paho.client.mqttv3.MqttClient;
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
-import org.eclipse.paho.client.mqttv3.MqttException;
-import org.eclipse.paho.client.mqttv3.MqttMessage;
+//import org.eclipse.paho.client.mqttv3.MqttClient;
+//import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+//import org.eclipse.paho.client.mqttv3.MqttException;
+//import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,10 +38,9 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     private static final byte COMMAND_PLATFORM_LOGIN = 0x05; // 平台登录命令
 
     private final Config config;
-    private final ObjectMapper objectMapper;
-    private MqttClient mqttClient;
-    private final String mqttTopic;
-    private final int mqttQos;
+//    private MqttClient mqttClient;
+//    private final String mqttTopic;
+//    private final int mqttQos;
 
     // 数据缓存队列
     private final BlockingQueue<String> dataQueue = new LinkedBlockingQueue<>();
@@ -54,45 +53,44 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
     public Gb32960ProtocolHandler(Config config) {
         this.config = config;
-        this.objectMapper = new ObjectMapper();
-        this.mqttTopic = config.getString("gb32960.mqtt.topic");
-        this.mqttQos = config.getInt("gb32960.mqtt.qos");
+//        this.mqttTopic = config.getString("gb32960.mqtt.topic");
+//        this.mqttQos = config.getInt("gb32960.mqtt.qos");
 
-        initMqttClient();
-        startMqttSender();
+//        initMqttClient();
+//        startMqttSender();
     }
 
     /**
      * 初始化MQTT客户端
      */
-    private void initMqttClient() {
-        try {
-            String brokerUrl = config.getString("gb32960.mqtt.broker-url");
-            String clientId = config.getString("gb32960.mqtt.client-id");
-
-            mqttClient = new MqttClient(brokerUrl, clientId, null);
-
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setCleanSession(true);
-            options.setConnectionTimeout(30);
-            options.setKeepAliveInterval(60);
-
-            // 设置用户名密码
-            String username = config.getString("gb32960.mqtt.username");
-            String password = config.getString("gb32960.mqtt.password");
-            if (!username.isEmpty()) {
-                options.setUserName(username);
-            }
-            if (!password.isEmpty()) {
-                options.setPassword(password.toCharArray());
-            }
-
-            mqttClient.connect(options);
-            logger.info("MQTT客户端连接成功: {}", brokerUrl);
-        } catch (MqttException e) {
-            logger.error("MQTT客户端连接失败", e);
-        }
-    }
+//    private void initMqttClient() {
+//        try {
+//            String brokerUrl = config.getString("gb32960.mqtt.broker-url");
+//            String clientId = config.getString("gb32960.mqtt.client-id");
+//
+//            mqttClient = new MqttClient(brokerUrl, clientId, null);
+//
+//            MqttConnectOptions options = new MqttConnectOptions();
+//            options.setCleanSession(true);
+//            options.setConnectionTimeout(30);
+//            options.setKeepAliveInterval(60);
+//
+//            // 设置用户名密码
+//            String username = config.getString("gb32960.mqtt.username");
+//            String password = config.getString("gb32960.mqtt.password");
+//            if (!username.isEmpty()) {
+//                options.setUserName(username);
+//            }
+//            if (!password.isEmpty()) {
+//                options.setPassword(password.toCharArray());
+//            }
+//
+//            mqttClient.connect(options);
+//            logger.info("MQTT客户端连接成功: {}", brokerUrl);
+//        } catch (MqttException e) {
+//            logger.error("MQTT客户端连接失败", e);
+//        }
+//    }
 
     /**
      * 启动MQTT消息发送线程
@@ -110,7 +108,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
                     // 如果有数据或者批次达到一定数量，则发送
                     if (!batch.isEmpty() && (batch.size() >= 10 || data == null)) {
-                        sendBatchData(batch);
+//                        sendBatchData(batch);
                         batch.clear();
                     }
                 } catch (InterruptedException e) {
@@ -129,33 +127,33 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 发送批量数据到MQTT
      */
-    private void sendBatchData(List<String> dataList) {
-        if (dataList.isEmpty() || mqttClient == null || !mqttClient.isConnected()) {
-            return;
-        }
-
-        try {
-            // 构造JSON数组
-            StringBuilder jsonBuilder = new StringBuilder("[");
-            for (int i = 0; i < dataList.size(); i++) {
-                if (i > 0) {
-                    jsonBuilder.append(",");
-                }
-                jsonBuilder.append(dataList.get(i));
-            }
-            jsonBuilder.append("]");
-
-            String jsonData = jsonBuilder.toString();
-            MqttMessage message = new MqttMessage(jsonData.getBytes(StandardCharsets.UTF_8));
-            message.setQos(mqttQos);
-            message.setRetained(false);
-
-            mqttClient.publish(mqttTopic, message);
-            logger.debug("发送MQTT消息到主题 {}: {} 条数据", mqttTopic, dataList.size());
-        } catch (MqttException e) {
-            logger.error("MQTT消息发送失败", e);
-        }
-    }
+//    private void sendBatchData(List<String> dataList) {
+//        if (dataList.isEmpty() || mqttClient == null || !mqttClient.isConnected()) {
+//            return;
+//        }
+//
+//        try {
+//            // 构造JSON数组
+//            StringBuilder jsonBuilder = new StringBuilder("[");
+//            for (int i = 0; i < dataList.size(); i++) {
+//                if (i > 0) {
+//                    jsonBuilder.append(",");
+//                }
+//                jsonBuilder.append(dataList.get(i));
+//            }
+//            jsonBuilder.append("]");
+//
+//            String jsonData = jsonBuilder.toString();
+//            MqttMessage message = new MqttMessage(jsonData.getBytes(StandardCharsets.UTF_8));
+//            message.setQos(mqttQos);
+//            message.setRetained(false);
+//
+//            mqttClient.publish(mqttTopic, message);
+//            logger.debug("发送MQTT消息到主题 {}: {} 条数据", mqttTopic, dataList.size());
+//        } catch (MqttException e) {
+//            logger.error("MQTT消息发送失败", e);
+//        }
+//    }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -380,8 +378,9 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             jsonBuilder.append("}");
 
             // 添加到发送队列
-            dataQueue.offer(jsonBuilder.toString());
+//            dataQueue.offer(jsonBuilder.toString());
             logger.debug("处理实时数据: {} 字节", length);
+            loggerDebug.info("处理实时数据: {}", jsonBuilder.toString());
         } catch (Exception e) {
             logger.error("处理实时数据异常", e);
         }
@@ -407,8 +406,9 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             jsonBuilder.append("}");
 
             // 添加到发送队列
-            dataQueue.offer(jsonBuilder.toString());
+//            dataQueue.offer(jsonBuilder.toString());
             logger.debug("处理补发数据: {} 字节", length);
+            loggerDebug.info("处理补发数据: {}", jsonBuilder.toString());
         } catch (Exception e) {
             logger.error("处理补发数据异常", e);
         }
@@ -514,10 +514,10 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             mqttSenderThread.interrupt();
         }
 
-        if (mqttClient != null && mqttClient.isConnected()) {
-            mqttClient.disconnect();
-            mqttClient.close();
-        }
+//        if (mqttClient != null && mqttClient.isConnected()) {
+//            mqttClient.disconnect();
+//            mqttClient.close();
+//        }
 
         super.handlerRemoved(ctx);
     }
