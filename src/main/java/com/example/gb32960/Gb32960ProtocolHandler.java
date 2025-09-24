@@ -368,22 +368,237 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         try {
+            // 解析实时数据
+            String parsedData = parseRealTimeData(data, offset, length);
             // 构造JSON数据
             StringBuilder jsonBuilder = new StringBuilder();
             jsonBuilder.append("{");
             jsonBuilder.append("\"vin\":\"").append(vin).append("\",");
             jsonBuilder.append("\"timestamp\":\"").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\",");
             jsonBuilder.append("\"dataType\":\"realtime\",");
-            jsonBuilder.append("\"data\":\"").append(bytesToHex(data, offset, length)).append("\"");
+            jsonBuilder.append("\"data\":").append(parsedData);
             jsonBuilder.append("}");
 
             // 添加到发送队列
 //            dataQueue.offer(jsonBuilder.toString());
             logger.debug("处理实时数据: {} 字节", length);
-            loggerDebug.info("处理实时数据: {}", jsonBuilder.toString());
+            loggerDebug.info("实时数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
+            loggerDebug.info("实时数据解析后: {}", jsonBuilder.toString());
         } catch (Exception e) {
             logger.error("处理实时数据异常", e);
         }
+    }
+
+    /**
+     * 解析GB32960实时数据单元
+     */
+    private String parseRealTimeData(byte[] data, int offset, int length) {
+        StringBuilder result = new StringBuilder();
+        int pos = offset;
+
+        // 数据采集时间 (6 bytes)
+        if (pos + 6 <= offset + length) {
+            int year = 2000 + (data[pos] & 0xFF);
+            int month = data[pos + 1] & 0xFF;
+            int day = data[pos + 2] & 0xFF;
+            int hour = data[pos + 3] & 0xFF;
+            int minute = data[pos + 4] & 0xFF;
+            int second = data[pos + 5] & 0xFF;
+            result.append(String.format("\"time\":\"%04d-%02d-%02d %02d:%02d:%02d\",",
+                    year, month, day, hour, minute, second));
+            pos += 6;
+        }
+
+        // 整车数据 (24 bytes)
+        if (pos + 24 <= offset + length) {
+            int vehicleStatus = data[pos] & 0xFF; // 车辆状态
+            int chargeStatus = data[pos + 1] & 0xFF; // 充电状态
+            int mode = data[pos + 2] & 0xFF; // 运行模式
+            float speed = ((data[pos + 3] & 0xFF) * 256 + (data[pos + 4] & 0xFF)) / 10.0f; // 车速(km/h)
+            long mileage = ((data[pos + 5] & 0xFF) << 24) | ((data[pos + 6] & 0xFF) << 16) |
+                    ((data[pos + 7] & 0xFF) << 8) | (data[pos + 8] & 0xFF); // 累计里程(km)
+            int voltage = ((data[pos + 9] & 0xFF) << 8) | (data[pos + 10] & 0xFF); // 总电压(0.1V)
+            int current = ((data[pos + 11] & 0xFF) << 8) | (data[pos + 12] & 0xFF); // 总电流(0.1A-4000)
+            int soc = data[pos + 13] & 0xFF; // SOC(%)
+            int dcStatus = data[pos + 14] & 0xFF; // DC-DC状态
+            int gear = data[pos + 15] & 0xFF; // 挡位信息
+            int resistance = ((data[pos + 16] & 0xFF) << 8) | (data[pos + 17] & 0xFF); // 绝缘电阻(kΩ)
+            int accelerator = data[pos + 18] & 0xFF; // 加速踏板行程值(%)
+            int brake = data[pos + 19] & 0xFF; // 制动踏板状态
+            // 剩余4字节未使用或保留字段
+            int reserved1 = data[pos + 20] & 0xFF;
+            int reserved2 = data[pos + 21] & 0xFF;
+            int reserved3 = data[pos + 22] & 0xFF;
+            int reserved4 = data[pos + 23] & 0xFF;
+
+            result.append(String.format("\"vehicleData\":{"));
+            result.append(String.format("\"vehicleStatus\":%d,", vehicleStatus));
+            result.append(String.format("\"chargeStatus\":%d,", chargeStatus));
+            result.append(String.format("\"mode\":%d,", mode));
+            result.append(String.format("\"speed\":%.1f,", speed));
+            result.append(String.format("\"mileage\":%d,", mileage));
+            result.append(String.format("\"voltage\":%d,", voltage));
+            result.append(String.format("\"current\":%d,", current));
+            result.append(String.format("\"soc\":%d,", soc));
+            result.append(String.format("\"dcStatus\":%d,", dcStatus));
+            result.append(String.format("\"gear\":%d,", gear));
+            result.append(String.format("\"resistance\":%d,", resistance));
+            result.append(String.format("\"accelerator\":%d,", accelerator));
+            result.append(String.format("\"brake\":%d", brake));
+            // 可选择是否包含保留字段
+            // result.append(String.format(",\"reserved1\":%d,\"reserved2\":%d,\"reserved3\":%d,\"reserved4\":%d", reserved1, reserved2, reserved3, reserved4));
+            result.append("},");
+            pos += 24;
+        }
+
+        // 驱动电机数据
+        if (pos + 1 <= offset + length) {
+            int motorCount = data[pos] & 0xFF; // 驱动电机个数
+            result.append(String.format("\"motorCount\":%d,", motorCount));
+            pos += 1;
+
+            // 解析各驱动电机信息 (每台电机12字节)
+            if (motorCount > 0 && pos + (motorCount * 12) <= offset + length) {
+                result.append("\"motors\":[");
+                for (int i = 0; i < motorCount; i++) {
+                    int motorSeq = data[pos] & 0xFF; // 电机序号
+                    int motorStatus = data[pos + 1] & 0xFF; // 电机状态
+                    int controllerTemp = data[pos + 2] & 0xFF; // 电机控制器温度(°C-40)
+                    int speed = ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF); // 电机转速(r/min)
+                    int torque = ((data[pos + 5] & 0xFF) << 8) | (data[pos + 6] & 0xFF); // 电机转矩(0.1Nm-2000)
+                    int motorTemp = data[pos + 7] & 0xFF; // 电机温度(°C-40)
+                    int controllerVoltage = ((data[pos + 8] & 0xFF) << 8) | (data[pos + 9] & 0xFF); // 电机控制器输入电压(0.1V)
+                    int controllerCurrent = ((data[pos + 10] & 0xFF) << 8) | (data[pos + 11] & 0xFF); // 电机控制器直流母线电流(0.1A-1000)
+
+                    if (i > 0) result.append(",");
+                    result.append("{");
+                    result.append(String.format("\"motorSeq\":%d,", motorSeq));
+                    result.append(String.format("\"motorStatus\":%d,", motorStatus));
+                    result.append(String.format("\"controllerTemp\":%d,", controllerTemp));
+                    result.append(String.format("\"speed\":%d,", speed));
+                    result.append(String.format("\"torque\":%d,", torque));
+                    result.append(String.format("\"motorTemp\":%d,", motorTemp));
+                    result.append(String.format("\"controllerVoltage\":%d,", controllerVoltage));
+                    result.append(String.format("\"controllerCurrent\":%d", controllerCurrent));
+                    result.append("}");
+
+                    pos += 12;
+                }
+                result.append("],");
+            } else {
+                pos += motorCount * 12; // 跳过电机数据
+            }
+        }
+
+        // 燃料电池数据 (可变长度)
+        if (pos + 11 <= offset + length) { // 至少需要9字节基础数据
+            int fuelVoltage = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF); // 燃料电池电压(0.1V)
+            int fuelCurrent = ((data[pos + 2] & 0xFF) << 8) | (data[pos + 3] & 0xFF); // 燃料电池电流(0.1A)
+            int fuelConsumption = ((data[pos + 4] & 0xFF) << 8) | (data[pos + 5] & 0xFF); // 燃料消耗率(0.01L/h)
+            int probeCount = data[pos + 6] & 0xFF; // 燃料电池探针总数
+            int maxTemp = ((data[pos + 7] & 0xFF) << 8) | (data[pos + 8] & 0xFF); // 氢系统最高温度(0.1K-40)
+            int maxPressure = ((data[pos + 9] & 0xFF) << 8) | (data[pos + 10] & 0xFF); // 氢系统最高压力(0.1MPa)
+
+            result.append(String.format("\"fuelCellData\":{"));
+            result.append(String.format("\"fuelVoltage\":%d,", fuelVoltage));
+            result.append(String.format("\"fuelCurrent\":%d,", fuelCurrent));
+            result.append(String.format("\"fuelConsumption\":%d,", fuelConsumption));
+            result.append(String.format("\"probeCount\":%d,", probeCount));
+            result.append(String.format("\"maxTemp\":%d,", maxTemp));
+            result.append(String.format("\"maxPressure\":%d", maxPressure));
+
+            pos += 11; // 基础数据11字节
+
+            // 处理探针温度数据
+            if (probeCount > 0 && pos + probeCount <= offset + length) {
+                result.append(",\"probeTemps\":[");
+                for (int i = 0; i < probeCount; i++) {
+                    if (i > 0) result.append(",");
+                    result.append(String.format("%d", data[pos + i] & 0xFF)); // 探针温度(°C-40)
+                }
+                result.append("]");
+                pos += probeCount;
+            }
+            result.append("},");
+        }
+
+        // 发动机数据
+        if (pos + 5 <= offset + length) {
+            int engineStatus = data[pos] & 0xFF; // 发动机状态
+            int crankshaftSpeed = ((data[pos + 1] & 0xFF) << 8) | (data[pos + 2] & 0xFF); // 曲轴转速(r/min)
+            int fuelConsumption = ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF); // 燃料消耗率(0.01L/h)
+
+            result.append(String.format("\"engineData\":{"));
+            result.append(String.format("\"engineStatus\":%d,", engineStatus));
+            result.append(String.format("\"crankshaftSpeed\":%d,", crankshaftSpeed));
+            result.append(String.format("\"fuelConsumption\":%d", fuelConsumption));
+            result.append("},");
+            pos += 5;
+        }
+
+        // 定位状态数据
+        if (pos + 9 <= offset + length) {
+            int locationStatus = data[pos] & 0xFF; // 定位状态
+            int longitude = ((data[pos + 1] & 0xFF) << 24) | ((data[pos + 2] & 0xFF) << 16) |
+                    ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF); // 经度(百万分之一度)
+            int latitude = ((data[pos + 5] & 0xFF) << 24) | ((data[pos + 6] & 0xFF) << 16) |
+                    ((data[pos + 7] & 0xFF) << 8) | (data[pos + 8] & 0xFF); // 纬度(百万分之一度)
+
+            result.append(String.format("\"locationData\":{"));
+            result.append(String.format("\"locationStatus\":%d,", locationStatus));
+            result.append(String.format("\"longitude\":%d,", longitude));
+            result.append(String.format("\"latitude\":%d", latitude));
+            result.append("},");
+            pos += 9;
+        }
+
+        // 极值数据
+        if (pos + 14 <= offset + length) {
+            int maxVoltageSys = data[pos] & 0xFF; // 最高电压电池子系统号
+            int maxVoltageCell = data[pos + 1] & 0xFF; // 最高电压电池单体代号
+            int maxVoltage = ((data[pos + 2] & 0xFF) << 8) | (data[pos + 3] & 0xFF); // 电池单体电压最高值(0.001V)
+            int minVoltageSys = data[pos + 4] & 0xFF; // 最低电压电池子系统号
+            int minVoltageCell = data[pos + 5] & 0xFF; // 最低电压电池单体代号
+            int minVoltage = ((data[pos + 6] & 0xFF) << 8) | (data[pos + 7] & 0xFF); // 电池单体电压最低值(0.001V)
+            int maxTempSys = data[pos + 8] & 0xFF; // 最高温度子系统号
+            int maxTempProbe = data[pos + 9] & 0xFF; // 最高温度探针序号
+            int maxTemp = data[pos + 10] & 0xFF; // 最高温度值(°C-40)
+            int minTempSys = data[pos + 11] & 0xFF; // 最低温度子系统号
+            int minTempProbe = data[pos + 12] & 0xFF; // 最低温度探针序号
+            int minTemp = data[pos + 13] & 0xFF; // 最低温度值(°C-40)
+
+            result.append(String.format("\"extremeData\":{"));
+            result.append(String.format("\"maxVoltageSys\":%d,", maxVoltageSys));
+            result.append(String.format("\"maxVoltageCell\":%d,", maxVoltageCell));
+            result.append(String.format("\"maxVoltage\":%d,", maxVoltage));
+            result.append(String.format("\"minVoltageSys\":%d,", minVoltageSys));
+            result.append(String.format("\"minVoltageCell\":%d,", minVoltageCell));
+            result.append(String.format("\"minVoltage\":%d,", minVoltage));
+            result.append(String.format("\"maxTempSys\":%d,", maxTempSys));
+            result.append(String.format("\"maxTempProbe\":%d,", maxTempProbe));
+            result.append(String.format("\"maxTemp\":%d,", maxTemp));
+            result.append(String.format("\"minTempSys\":%d,", minTempSys));
+            result.append(String.format("\"minTempProbe\":%d,", minTempProbe));
+            result.append(String.format("\"minTemp\":%d", minTemp));
+            result.append("},");
+            pos += 14;
+        }
+
+        // 报警数据
+        if (pos + 5 <= offset + length) {
+            int maxAlarmLevel = data[pos] & 0xFF; // 最高报警等级
+            int generalAlarm = ((data[pos + 1] & 0xFF) << 24) | ((data[pos + 2] & 0xFF) << 16) |
+                    ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF); // 通用报警标志
+
+            result.append(String.format("\"alarmData\":{"));
+            result.append(String.format("\"maxAlarmLevel\":%d,", maxAlarmLevel));
+            result.append(String.format("\"generalAlarm\":%d", generalAlarm));
+            // 还有更多报警字段，但需要检查数据长度
+            result.append("}");
+            pos += 5;
+        }
+
+        return "{" + result.toString().replaceAll(",$", "") + "}";
     }
 
     /**
@@ -396,19 +611,22 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         try {
+            // 解析补发数据
+            String parsedData = parseRealTimeData(data, offset, length);
             // 构造JSON数据
             StringBuilder jsonBuilder = new StringBuilder();
             jsonBuilder.append("{");
             jsonBuilder.append("\"vin\":\"").append(vin).append("\",");
             jsonBuilder.append("\"timestamp\":\"").append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).append("\",");
             jsonBuilder.append("\"dataType\":\"resend\",");
-            jsonBuilder.append("\"data\":\"").append(bytesToHex(data, offset, length)).append("\"");
+            jsonBuilder.append("\"data\":").append(parsedData);
             jsonBuilder.append("}");
 
             // 添加到发送队列
 //            dataQueue.offer(jsonBuilder.toString());
             logger.debug("处理补发数据: {} 字节", length);
-            loggerDebug.info("处理补发数据: {}", jsonBuilder.toString());
+            loggerDebug.info("补发数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
+            loggerDebug.info("补发数据解析后: {}", jsonBuilder.toString());
         } catch (Exception e) {
             logger.error("处理补发数据异常", e);
         }
