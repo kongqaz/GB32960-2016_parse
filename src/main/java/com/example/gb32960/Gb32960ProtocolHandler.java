@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(Gb32960ProtocolHandler.class);
+    private static final Logger loggerDebug = LoggerFactory.getLogger("logger.DEBUG_MSG");
 
     // GB32960协议常量
     private static final byte START_DELIMITER_1 = 0x23; // 起始符 #
@@ -166,7 +167,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof byte[]) {
             byte[] data = (byte[]) msg;
-            logger.debug("接收到原始数据: {}", bytesToHex(data));
+            loggerDebug.info("接收到原始数据: {}", bytesToHex(data));
 
             try {
                 processGb32960Message(ctx, data);
@@ -261,7 +262,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
      * 处理平台登录
      */
     private void handlePlatformLogin(ChannelHandlerContext ctx, byte[] data, int offset, int length, String vin) {
-        if (length < 3) {
+        if (length < 17) {
             logger.error("平台登录数据长度不足");
             sendPlatformLoginResponse(ctx, (byte) 0x01, vin); // 失败
             return;
@@ -311,7 +312,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[25] = calculateBcc(response, 2, 25); // 从索引2(命令标识)到索引24(数据单元末尾)
 
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
-        logger.debug("发送平台登录响应: {}", bytesToHex(response));
+        loggerDebug.info("发送平台登录响应: {}", bytesToHex(response));
     }
 
     /**
@@ -497,7 +498,11 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     private String bytesToHex(byte[] bytes, int offset, int length) {
         StringBuilder sb = new StringBuilder();
         for (int i = offset; i < offset + length; i++) {
-            sb.append(String.format("%02X", bytes[i]));
+            if(i <  offset + length - 1) {
+                sb.append(String.format("%02X ", bytes[i]));
+            } else{
+                sb.append(String.format("%02X", bytes[i]));
+            }
         }
         return sb.toString();
     }
