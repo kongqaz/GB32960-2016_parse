@@ -1,11 +1,14 @@
 package com.example.service;
 
+import com.example.Gb32960ParserApplication;
 import com.example.entity.RealTimeData;
 import com.example.mapper.RealTimeDataMapper;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +17,7 @@ import java.util.List;
 public class DatabaseService {
     private static DatabaseService instance;
     private SqlSessionFactory sqlSessionFactory;
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
 
     private DatabaseService() {
         try {
@@ -27,8 +31,9 @@ public class DatabaseService {
                 mapper.createTable();
                 session.commit();
             }
-        } catch (IOException e) {
-            throw new RuntimeException("初始化数据库连接失败", e);
+        } catch (Exception e) {
+//            throw new RuntimeException("初始化数据库连接失败", e);
+            logger.error("初始化数据库连接失败", e);
         }
     }
 
