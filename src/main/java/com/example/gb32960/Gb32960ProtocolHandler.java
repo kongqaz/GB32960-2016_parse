@@ -179,7 +179,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
      * 处理GB32960协议消息
      */
     private void processGb32960Message(ChannelHandlerContext ctx, byte[] data) {
-        if (data.length < 26) {
+        if (data.length < 25) {
             logger.error("数据长度不足，丢弃消息");
             return;
         }
@@ -344,7 +344,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         System.arraycopy(String.format("%-17s", vin).getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
         response[21] = ENCRYPTION_NONE;
         response[22] = 0x00;
-        response[23] = 0x02;
+        response[23] = 0x05;
         response[24] = loginResult;
         response[25] = (byte) (timestamp >> 24);
         response[26] = (byte) (timestamp >> 16);
@@ -664,7 +664,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 回复心跳
-        byte[] response = new byte[24]; // 增加1字节以容纳第二个起始符
+        byte[] response = new byte[25];
         response[0] = START_DELIMITER_1; // 起始符1
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x07; // 命令标识(心跳)
@@ -673,6 +673,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[21] = ENCRYPTION_NONE;
         response[22] = 0x00;
         response[23] = 0x00;
+        response[24] = calculateBcc(response, 2, 24);
 
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
         logger.debug("回复心跳消息");

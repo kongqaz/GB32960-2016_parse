@@ -19,13 +19,12 @@ public class Gb32960Decoder extends ByteToMessageDecoder {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-        // 记录当前readerIndex位置，用于回退
-        in.markReaderIndex();
-
         while (in.readableBytes() > 0) {
+            // 记录当前readerIndex位置，用于回退
+            in.markReaderIndex();
             // 查找起始符
             if (in.readByte() != START_DELIMITER_1) {
-                continue;
+                return;
             }
 
             // 检查是否还有数据可读
@@ -38,11 +37,11 @@ public class Gb32960Decoder extends ByteToMessageDecoder {
             if (in.readByte() != START_DELIMITER_2) {
                 // 回退一个字节，继续查找
                 in.readerIndex(in.readerIndex() - 1);
-                continue;
+                return;
             }
 
-            // 找到起始符后，检查是否有足够的字节读取长度字段
-            if (in.readableBytes() < 24) { // 至少需要读取到长度字段
+            // 找到起始符后，检查是否有足够的字节
+            if (in.readableBytes() < 23) {
                 // 数据不够，回退并等待更多数据
                 in.resetReaderIndex();
                 return;
@@ -58,7 +57,7 @@ public class Gb32960Decoder extends ByteToMessageDecoder {
             int totalLength = 25 + dataLength; // 起始符(2) + 头部(22) + 数据单元长度 + 校验码(1)
 
             // 检查是否有足够的数据构成完整包
-            if (in.readableBytes() < totalLength - 2) { // 减去已经读取的两个起始符
+            if (in.readableBytes() < dataLength + 1) {
                 // 数据不够，回退并等待更多数据
                 in.resetReaderIndex();
                 return;
