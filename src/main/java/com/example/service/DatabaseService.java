@@ -49,18 +49,18 @@ public class DatabaseService {
         try {
             // 配置 HikariCP 数据源
             HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(sysconfig.getString("db.url"));
-            config.setUsername(sysconfig.getString("db.username"));
-            config.setPassword(sysconfig.getString("db.password"));
-            config.setDriverClassName(sysconfig.getString("db.driver"));
+            config.setJdbcUrl(sysconfig.getString("gb32960.db.url"));
+            config.setUsername(sysconfig.getString("gb32960.db.username"));
+            config.setPassword(sysconfig.getString("gb32960.db.password"));
+            config.setDriverClassName(sysconfig.getString("gb32960.db.driver"));
 
             // 连接池配置
-            config.setMaximumPoolSize(sysconfig.getInt("db.pool.maxSize"));
-            config.setMinimumIdle(sysconfig.getInt("db.pool.minIdle"));
-            config.setConnectionTimeout(sysconfig.getInt("db.pool.connectionTimeout"));
-            config.setIdleTimeout(sysconfig.getInt("db.pool.idleTimeout"));
-            config.setMaxLifetime(sysconfig.getInt("db.pool.maxLifetime"));
-            config.setLeakDetectionThreshold(sysconfig.getInt("db.pool.leakDetectionThreshold"));
+            config.setMaximumPoolSize(sysconfig.getInt("gb32960.db.pool.maxSize"));
+            config.setMinimumIdle(sysconfig.getInt("gb32960.db.pool.minIdle"));
+            config.setConnectionTimeout(sysconfig.getInt("gb32960.db.pool.connectionTimeout"));
+            config.setIdleTimeout(sysconfig.getInt("gb32960.db.pool.idleTimeout"));
+            config.setMaxLifetime(sysconfig.getInt("gb32960.db.pool.maxLifetime"));
+            config.setLeakDetectionThreshold(sysconfig.getInt("gb32960.db.pool.leakDetectionThreshold"));
 
             // 健康检查配置
             config.setConnectionTestQuery("SELECT 1");
