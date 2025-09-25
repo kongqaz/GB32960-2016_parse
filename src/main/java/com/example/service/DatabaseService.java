@@ -30,6 +30,7 @@ public class DatabaseService {
                 RealTimeDataMapper mapper = session.getMapper(RealTimeDataMapper.class);
                 mapper.createTable();
                 session.commit();
+                logger.info("DatabaseService init OK");
             }
         } catch (Exception e) {
 //            throw new RuntimeException("初始化数据库连接失败", e);
