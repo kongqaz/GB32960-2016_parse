@@ -2,8 +2,11 @@ package com.example.service;
 
 import com.example.entity.RealTimeData;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.typesafe.config.Config;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spark.Spark;
 
 import java.util.List;
@@ -11,6 +14,7 @@ import java.util.List;
 public class HttpService {
     private DatabaseService databaseService;
     private Gson gson;
+    private static final Logger logger = LoggerFactory.getLogger(HttpService.class);
 
     public HttpService(Config config) {
         this.databaseService = DatabaseService.getInstance(config);
@@ -27,9 +31,11 @@ public class HttpService {
 
             if (data != null) {
                 res.type("application/json");
+                logger.info("get /api/GB32960_RT/:vin OK");
                 return data;
             } else {
                 res.status(404);
+                logger.error("get /api/GB32960_RT/:vin fail");
                 return "{\"error\":\"未找到车辆实时数据\"}";
             }
         });
@@ -41,16 +47,21 @@ public class HttpService {
                 JsonObject result = new JsonObject();
                 result.addProperty("count", dataList.size());
 
-                JsonObject dataObject = new JsonObject();
+//                JsonObject dataObject = new JsonObject();
+                JsonArray dataArray= new JsonArray();
                 for (RealTimeData data : dataList) {
-                    dataObject.addProperty(data.getVin(), data.getJsonData());
+//                    dataObject.addProperty(data.getVin(), data.getJsonData());
+                    dataArray.add(data.getJsonData());
                 }
-                result.add("data", dataObject);
+//                result.add("data", dataObject);
+                result.add("data", dataArray);
 
                 res.type("application/json");
+                logger.info("get /api/GB32960_RT OK");
                 return gson.toJson(result);
             } catch (Exception e) {
                 res.status(500);
+                logger.error("get /api/GB32960_RT fail");
                 return "{\"error\":\"获取数据失败\"}";
             }
         });
