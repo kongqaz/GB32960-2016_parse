@@ -26,42 +26,52 @@ public class HttpService {
 
         // 获取指定VIN的实时数据
         Spark.get("/api/GB32960_RT/:vin", (req, res) -> {
-            String vin = req.params(":vin");
-            String data = databaseService.getRealTimeData(vin);
+            try {
+                String vin = req.params(":vin");
+                logger.info("Recv /api/GB32960_RT/{} from addr={}:{}", vin, req.ip(), req.port());
+                String data = databaseService.getRealTimeData(vin);
 
-            if (data != null) {
-                res.type("application/json");
-                logger.info("get /api/GB32960_RT/:vin OK");
-                return data;
-            } else {
-                res.status(404);
-                logger.error("get /api/GB32960_RT/:vin fail");
-                return "{\"error\":\"未找到车辆实时数据\"}";
+                if (data != null) {
+                    res.type("application/json");
+                    logger.info("addr={}:{} get /api/GB32960_RT/{} OK", req.ip(), req.port(), vin);
+                    return data;
+                } else {
+                    res.status(404);
+                    logger.error("addr={}:{} get /api/GB32960_RT/{} fail", req.ip(), req.port(), vin);
+                    return "{\"error\":\"未找到车辆实时数据\"}";
+                }
+            } catch (Exception e) {
+                res.status(500);
+                logger.error("addr={}:{} get /api/GB32960_RT/:vin fail2, ex=", req.ip(), req.port(), e);
+                return "{\"error\":\"获取数据失败\"}";
             }
         });
 
         // 获取所有实时数据
         Spark.get("/api/GB32960_RT", (req, res) -> {
             try {
+                logger.info("Recv /api/GB32960_RT from addr={}:{}", req.ip(), req.port());
                 List<RealTimeData> dataList = databaseService.getAllRealTimeData();
-                JsonObject result = new JsonObject();
-                result.addProperty("count", dataList.size());
+//                JsonObject result = new JsonObject();
+//                result.addProperty("count", dataList.size());
 
 //                JsonObject dataObject = new JsonObject();
                 JsonArray dataArray= new JsonArray();
                 for (RealTimeData data : dataList) {
 //                    dataObject.addProperty(data.getVin(), data.getJsonData());
-                    dataArray.add(data.getJsonData());
+//                    dataArray.add(data.getJsonData());
+                    JsonObject jsonObject = gson.fromJson(data.getJsonData(), JsonObject.class);
+                    dataArray.add(jsonObject);
                 }
 //                result.add("data", dataObject);
-                result.add("data", dataArray);
+//                result.add("data", dataArray);
 
                 res.type("application/json");
-                logger.info("get /api/GB32960_RT OK");
-                return gson.toJson(result);
+                logger.info("addr={}:{} get /api/GB32960_RT OK", req.ip(), req.port());
+                return gson.toJson(dataArray);
             } catch (Exception e) {
                 res.status(500);
-                logger.error("get /api/GB32960_RT fail");
+                logger.error("addr={}:{} get /api/GB32960_RT fail, ex=", req.ip(), req.port(), e);
                 return "{\"error\":\"获取数据失败\"}";
             }
         });
