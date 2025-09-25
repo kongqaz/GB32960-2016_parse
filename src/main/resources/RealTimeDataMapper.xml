@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.example.gb32960.mapper.RealTimeDataMapper">
+<mapper namespace="com.example.mapper.RealTimeDataMapper">
 
     <resultMap id="RealTimeDataResultMap" type="com.example.entity.RealTimeData">
         <result property="id" column="id"/>
@@ -11,7 +11,7 @@
     </resultMap>
 
     <!-- 创建表 -->
-    <update id="createTable">
+    <update id="createTable" statementType="STATEMENT">
         CREATE TABLE IF NOT EXISTS real_time_data (
             id BIGINT AUTO_INCREMENT PRIMARY KEY,
             vin VARCHAR(50) NOT NULL UNIQUE,
