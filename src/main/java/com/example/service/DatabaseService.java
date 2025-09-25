@@ -72,19 +72,19 @@ public class DatabaseService {
             Environment environment = new Environment("development", transactionFactory, dataSource);
 
             // 构建 SqlSessionFactory
-            String resource = "mybatis-config.xml";
-            InputStream inputStream = Resources.getResourceAsStream(resource);
-//            org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration(environment);
+//            String resource = "mybatis-config.xml";
+//            InputStream inputStream = Resources.getResourceAsStream(resource);
+            org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration(environment);
 
             // 解析 XML 配置文件
-            XMLConfigBuilder xmlConfigBuilder = new XMLConfigBuilder(inputStream);
-            org.apache.ibatis.session.Configuration parsedConfiguration = xmlConfigBuilder.parse();
-            parsedConfiguration.setEnvironment(environment); // 替换数据源环境
+//            XMLConfigBuilder xmlConfigBuilder = new XMLConfigBuilder(inputStream);
+//            org.apache.ibatis.session.Configuration parsedConfiguration = xmlConfigBuilder.parse();
+//            parsedConfiguration.setEnvironment(environment); // 替换数据源环境
 
-//            configuration.addMapper(RealTimeDataMapper.class);
+            configuration.addMapper(RealTimeDataMapper.class);
 
-//            sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
-            sqlSessionFactory = new SqlSessionFactoryBuilder().build(parsedConfiguration);
+            sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
+//            sqlSessionFactory = new SqlSessionFactoryBuilder().build(parsedConfiguration);
 
             // 初始化表
             try (SqlSession session = sqlSessionFactory.openSession()) {
