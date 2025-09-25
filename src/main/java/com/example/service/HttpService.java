@@ -26,31 +26,33 @@ public class HttpService {
 
         // 获取指定VIN的实时数据
         Spark.get("/api/GB32960_RT/:vin", (req, res) -> {
+            int clientPort = req.raw().getRemotePort() ;
             try {
                 String vin = req.params(":vin");
-                logger.info("Recv /api/GB32960_RT/{} from addr={}:{}", vin, req.ip(), req.port());
+                logger.info("Recv /api/GB32960_RT/{} from addr={}:{}", vin, req.ip(), clientPort);
                 String data = databaseService.getRealTimeData(vin);
 
                 if (data != null) {
                     res.type("application/json");
-                    logger.info("addr={}:{} get /api/GB32960_RT/{} OK", req.ip(), req.port(), vin);
+                    logger.info("addr={}:{} get /api/GB32960_RT/{} OK", req.ip(), clientPort, vin);
                     return data;
                 } else {
                     res.status(404);
-                    logger.error("addr={}:{} get /api/GB32960_RT/{} fail", req.ip(), req.port(), vin);
+                    logger.error("addr={}:{} get /api/GB32960_RT/{} fail", req.ip(), clientPort, vin);
                     return "{\"error\":\"未找到车辆实时数据\"}";
                 }
             } catch (Exception e) {
                 res.status(500);
-                logger.error("addr={}:{} get /api/GB32960_RT/:vin fail2, ex=", req.ip(), req.port(), e);
+                logger.error("addr={}:{} get /api/GB32960_RT/:vin fail2, ex=", req.ip(), clientPort, e);
                 return "{\"error\":\"获取数据失败\"}";
             }
         });
 
         // 获取所有实时数据
         Spark.get("/api/GB32960_RT", (req, res) -> {
+            int clientPort = req.raw().getRemotePort() ;
             try {
-                logger.info("Recv /api/GB32960_RT from addr={}:{}", req.ip(), req.port());
+                logger.info("Recv /api/GB32960_RT from addr={}:{}", req.ip(), clientPort);
                 List<RealTimeData> dataList = databaseService.getAllRealTimeData();
 //                JsonObject result = new JsonObject();
 //                result.addProperty("count", dataList.size());
@@ -67,11 +69,11 @@ public class HttpService {
 //                result.add("data", dataArray);
 
                 res.type("application/json");
-                logger.info("addr={}:{} get /api/GB32960_RT OK", req.ip(), req.port());
+                logger.info("addr={}:{} get /api/GB32960_RT OK", req.ip(), clientPort);
                 return gson.toJson(dataArray);
             } catch (Exception e) {
                 res.status(500);
-                logger.error("addr={}:{} get /api/GB32960_RT fail, ex=", req.ip(), req.port(), e);
+                logger.error("addr={}:{} get /api/GB32960_RT fail, ex=", req.ip(), clientPort, e);
                 return "{\"error\":\"获取数据失败\"}";
             }
         });
