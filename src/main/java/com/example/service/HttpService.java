@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.entity.RealTimeData;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.typesafe.config.Config;
 import spark.Spark;
 
 import java.util.List;
@@ -11,8 +12,8 @@ public class HttpService {
     private DatabaseService databaseService;
     private Gson gson;
 
-    public HttpService() {
-        this.databaseService = DatabaseService.getInstance();
+    public HttpService(Config config) {
+        this.databaseService = DatabaseService.getInstance(config);
         this.gson = new Gson();
     }
 

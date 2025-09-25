@@ -50,7 +50,7 @@ public class Gb32960ParserApplication {
             logger.info("GB32960协议解析器启动成功，监听地址: {}:{}", host, port);
 
             // 启动HTTP服务
-            httpService = new HttpService();
+            httpService = new HttpService(config);
             int httpPort = config.hasPath("gb32960.http.port") ? config.getInt("gb32960.http.port") : 8080;
             httpService.start(httpPort);
             logger.info("HTTP服务启动成功，监听地址: {}:{}", host, httpPort);

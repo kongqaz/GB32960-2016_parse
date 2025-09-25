@@ -56,7 +56,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
     public Gb32960ProtocolHandler(Config config) {
         this.config = config;
-        this.databaseService = DatabaseService.getInstance();
+        this.databaseService = DatabaseService.getInstance(config);
 //        this.mqttTopic = config.getString("gb32960.mqtt.topic");
 //        this.mqttQos = config.getInt("gb32960.mqtt.qos");
 

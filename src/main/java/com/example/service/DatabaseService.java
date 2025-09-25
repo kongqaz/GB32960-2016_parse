@@ -3,10 +3,16 @@ package com.example.service;
 import com.example.Gb32960ParserApplication;
 import com.example.entity.RealTimeData;
 import com.example.mapper.RealTimeDataMapper;
+import com.typesafe.config.Config;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+import org.apache.ibatis.transaction.TransactionFactory;
+import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
+import org.apache.ibatis.mapping.Environment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,10 +26,57 @@ public class DatabaseService {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
 
     private DatabaseService() {
+//        try {
+//            String resource = "mybatis-config.xml";
+//            InputStream inputStream = Resources.getResourceAsStream(resource);
+//            sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+//
+//            // 初始化表
+//            try (SqlSession session = sqlSessionFactory.openSession()) {
+//                RealTimeDataMapper mapper = session.getMapper(RealTimeDataMapper.class);
+//                mapper.createTable();
+//                session.commit();
+//                logger.info("DatabaseService init OK");
+//            }
+//        } catch (Exception e) {
+////            throw new RuntimeException("初始化数据库连接失败", e);
+//            logger.error("初始化数据库连接失败", e);
+//        }
+    }
+
+    private void init(Config sysconfig) throws  Exception{
         try {
+            // 配置 HikariCP 数据源
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(sysconfig.getString("db.url"));
+            config.setUsername(sysconfig.getString("db.username"));
+            config.setPassword(sysconfig.getString("db.password"));
+            config.setDriverClassName(sysconfig.getString("db.driver"));
+
+            // 连接池配置
+            config.setMaximumPoolSize(sysconfig.getInt("db.pool.maxSize"));
+            config.setMinimumIdle(sysconfig.getInt("db.pool.minIdle"));
+            config.setConnectionTimeout(sysconfig.getInt("db.pool.connectionTimeout"));
+            config.setIdleTimeout(sysconfig.getInt("db.pool.idleTimeout"));
+            config.setMaxLifetime(sysconfig.getInt("db.pool.maxLifetime"));
+            config.setLeakDetectionThreshold(sysconfig.getInt("db.pool.leakDetectionThreshold"));
+
+            // 健康检查配置
+            config.setConnectionTestQuery("SELECT 1");
+
+            HikariDataSource dataSource = new HikariDataSource(config);
+
+            // 创建 MyBatis 环境
+            TransactionFactory transactionFactory = new JdbcTransactionFactory();
+            Environment environment = new Environment("development", transactionFactory, dataSource);
+
+            // 构建 SqlSessionFactory
             String resource = "mybatis-config.xml";
             InputStream inputStream = Resources.getResourceAsStream(resource);
-            sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+            org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration(environment);
+            configuration.addMapper(RealTimeDataMapper.class);
+
+            sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
 
             // 初始化表
             try (SqlSession session = sqlSessionFactory.openSession()) {
@@ -33,14 +86,27 @@ public class DatabaseService {
                 logger.info("DatabaseService init OK");
             }
         } catch (Exception e) {
-//            throw new RuntimeException("初始化数据库连接失败", e);
             logger.error("初始化数据库连接失败", e);
+            throw e;
         }
     }
 
-    public static synchronized DatabaseService getInstance() {
+    public static synchronized DatabaseService getInstance(Config config) {
         if (instance == null) {
             instance = new DatabaseService();
+            while(true) {
+                try {
+                    instance.init(config);
+                    break;
+                } catch (Exception e) {
+                    logger.error("DatabaseService init fail:", e);
+                    try {
+                        Thread.sleep(3000);
+                    } catch (Exception ex) {
+                        logger.error("Thread.sleep fail:", ex);
+                    }
+                }
+            }
         }
         return instance;
     }
