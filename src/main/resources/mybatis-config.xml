@@ -2,23 +2,6 @@
 <!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
     "http://mybatis.org/dtd/mybatis-3-config.dtd">
 <configuration>
-    <environments default="development">
-        <environment id="development">
-            <transactionManager type="JDBC"/>
-            <dataSource type="com.zaxxer.hikari.HikariDataSource">
-                <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"/>
-                <property name="jdbcUrl" value="jdbc:mysql://localhost:3306/gb32960?useSSL=false&amp;serverTimezone=UTC"/>
-                <property name="username" value="root"/>
-                <property name="password" value="password"/>
-                <property name="maximumPoolSize" value="5"/>
-                <property name="minimumIdle" value="2"/>
-                <property name="connectionTimeout" value="30000"/>
-                <property name="idleTimeout" value="600000"/>
-                <property name="maxLifetime" value="1800000"/>
-            </dataSource>
-        </environment>
-    </environments>
-
     <mappers>
         <mapper resource="RealTimeDataMapper.xml"/>
     </mappers>

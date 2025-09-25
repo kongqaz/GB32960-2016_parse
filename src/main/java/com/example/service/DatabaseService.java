@@ -6,6 +6,7 @@ import com.example.mapper.RealTimeDataMapper;
 import com.typesafe.config.Config;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.apache.ibatis.builder.xml.XMLConfigBuilder;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -73,10 +74,17 @@ public class DatabaseService {
             // 构建 SqlSessionFactory
             String resource = "mybatis-config.xml";
             InputStream inputStream = Resources.getResourceAsStream(resource);
-            org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration(environment);
-            configuration.addMapper(RealTimeDataMapper.class);
+//            org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration(environment);
 
-            sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
+            // 解析 XML 配置文件
+            XMLConfigBuilder xmlConfigBuilder = new XMLConfigBuilder(inputStream);
+            org.apache.ibatis.session.Configuration parsedConfiguration = xmlConfigBuilder.parse();
+            parsedConfiguration.setEnvironment(environment); // 替换数据源环境
+
+//            configuration.addMapper(RealTimeDataMapper.class);
+
+//            sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
+            sqlSessionFactory = new SqlSessionFactoryBuilder().build(parsedConfiguration);
 
             // 初始化表
             try (SqlSession session = sqlSessionFactory.openSession()) {
