@@ -255,7 +255,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     private byte calculateBcc(byte[] data, int start, int end) {
         byte bcc = 0;
         for (int i = start; i < end; i++) {
-            bcc ^= data[i];
+            bcc ^= (data[i] & 0xFF);
         }
         return bcc;
     }
