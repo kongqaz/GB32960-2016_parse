@@ -304,7 +304,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x05; // 命令标识(平台登录)
         response[3] = 0x01; // 应答标识
-        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17); // VIN
+//        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17); // VIN
+        setRspWin(vin, response);
         response[21] = ENCRYPTION_NONE; // 加密方式
         response[22] = 0x00; // 数据单元长度高字节
         response[23] = 0x01; // 数据单元长度低字节
@@ -315,6 +316,17 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
         loggerDebug.info("发送平台登录响应: {}", bytesToHex(response));
+    }
+
+    private void setRspWin(String vin, byte[] response){
+        // 修改后
+        byte[] vinBytes = (vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1);
+        int copyLength = Math.min(vinBytes.length, 17);
+        System.arraycopy(vinBytes, 0, response, 4, copyLength);
+        // 剩余位置填充0x00
+        for (int i = 4 + copyLength; i < 4 + 17; i++) {
+            response[i] = 0x00;
+        }
     }
 
     /**
@@ -345,7 +357,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x01; // 命令标识(车辆登录)
         response[3] = 0x01; // 应答标识
-        System.arraycopy(String.format("%-17s", vin).getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
+//        System.arraycopy(String.format("%-17s", vin).getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
+        setRspWin(vin, response);
         response[21] = ENCRYPTION_NONE;
         response[22] = 0x00;
         response[23] = 0x05;
@@ -686,7 +699,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         response[1] = START_DELIMITER_2; // 起始符2
         response[2] = 0x07; // 命令标识(心跳)
         response[3] = 0x01; // 应答标识
-        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
+//        System.arraycopy(String.format("%-17s", vin != null ? vin : "").getBytes(StandardCharsets.ISO_8859_1), 0, response, 4, 17);
+        setRspWin(vin, response);
         response[21] = ENCRYPTION_NONE;
         response[22] = 0x00;
         response[23] = 0x00;
