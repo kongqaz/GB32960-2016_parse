@@ -23,8 +23,8 @@ public class Gb32960ChannelInitializer extends ChannelInitializer<SocketChannel>
     @Override
     protected void initChannel(SocketChannel ch) throws Exception {
         ch.pipeline()
-                // 空闲检测：30秒无读操作则触发
-                .addLast("idleStateHandler", new IdleStateHandler(30, 0, 0, TimeUnit.SECONDS))
+                // 空闲检测：60秒无读操作则触发
+                .addLast("idleStateHandler", new IdleStateHandler(60, 0, 0, TimeUnit.SECONDS))
                 // GB32960协议解码器，处理TCP粘包和半包问题
                 .addLast("gb32960Decoder", new Gb32960Decoder())
                 // 字节数组编码器
