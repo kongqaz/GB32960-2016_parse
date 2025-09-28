@@ -271,9 +271,13 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 提取登录信息
-        String username = new String(data, offset, 8, StandardCharsets.ISO_8859_1).trim();
-        String password = new String(data, offset + 8, 8, StandardCharsets.ISO_8859_1).trim();
-        String uniqueCode = new String(data, offset + 16, length - 16, StandardCharsets.ISO_8859_1).trim();
+//        String username = new String(data, offset, 8, StandardCharsets.ISO_8859_1).trim();
+//        String password = new String(data, offset + 8, 8, StandardCharsets.ISO_8859_1).trim();
+//        String uniqueCode = new String(data, offset + 16, length - 16, StandardCharsets.ISO_8859_1).trim();
+
+        String uniqueCode = vin;
+        String username = new String(data, offset + 8, 8, StandardCharsets.ISO_8859_1).trim();
+        String password = new String(data, offset + 16, length - 16, StandardCharsets.ISO_8859_1).trim();
 
         String expectedUsername = config.getString("gb32960.platform.username");
         String expectedPassword = config.getString("gb32960.platform.password");
