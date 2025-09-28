@@ -719,8 +719,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         if (evt instanceof IdleStateEvent) {
             IdleStateEvent event = (IdleStateEvent) evt;
             if (event.state() == IdleState.READER_IDLE) {
-                logger.warn("客户端{}读空闲超时", ctx.channel().remoteAddress());
-//                ctx.close();
+                logger.warn("客户端{}读空闲超时，断开连接", ctx.channel().remoteAddress());
+                ctx.close();
                 return;
             }
         }
