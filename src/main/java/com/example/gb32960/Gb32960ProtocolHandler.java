@@ -405,13 +405,15 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             jsonBuilder.append("}");
 
             String jsonData = jsonBuilder.toString();
+            logger.info("处理实时数据: {} 字节", length);
+            loggerDebug.info("实时数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
+            loggerDebug.info("实时数据解析后: {}", jsonData);
             databaseService.saveRealTimeData(vin, jsonData, formattedTime);
+            logger.info("saveRealTimeData OK");
 
             // 添加到发送队列
 //            dataQueue.offer(jsonBuilder.toString());
-            logger.debug("处理实时数据: {} 字节", length);
-            loggerDebug.info("实时数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
-            loggerDebug.info("实时数据解析后: {}", jsonData);
+
         } catch (Exception e) {
             logger.error("处理实时数据异常", e);
         }
@@ -654,13 +656,14 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             jsonBuilder.append("}");
 
             String jsonData = jsonBuilder.toString();
-            databaseService.saveRealTimeData(vin, jsonData, formattedTime);
-
-            // 添加到发送队列
-//            dataQueue.offer(jsonBuilder.toString());
-            logger.debug("处理补发数据: {} 字节", length);
+            logger.info("处理补发数据: {} 字节", length);
             loggerDebug.info("补发数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
             loggerDebug.info("补发数据解析后: {}", jsonData);
+            databaseService.saveRealTimeData(vin, jsonData, formattedTime);
+            logger.info("saveRealTimeData OK");
+            // 添加到发送队列
+//            dataQueue.offer(jsonBuilder.toString());
+
         } catch (Exception e) {
             logger.error("处理补发数据异常", e);
         }
