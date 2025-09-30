@@ -201,8 +201,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         byte encryption = data[21]; // 加密方式
         int dataLength = ((data[22] & 0xFF) << 8) | (data[23] & 0xFF); // 数据单元长度
 
-        logger.info("接收到GB32960消息 - 命令: 0x{}, 应答: 0x{}, VIN: {}, 加密: 0x{}, 数据长度: {}",
-                String.format("%02X", command), String.format("%02X", response),
+        logger.info("从{}接收到GB32960消息 - 命令: 0x{}, 应答: 0x{}, VIN: {}, 加密: 0x{}, 数据长度: {}",
+                ctx.channel().remoteAddress(), String.format("%02X", command), String.format("%02X", response),
                 vin, String.format("%02X", encryption), dataLength);
 
         // 检查数据完整性 (注意索引变化，需要包括校验码)
