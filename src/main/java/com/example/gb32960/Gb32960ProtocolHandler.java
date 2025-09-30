@@ -26,7 +26,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * GB32960协议处理器
+ * GB32960协议处理器: version1.0
  */
 public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(Gb32960ProtocolHandler.class);
