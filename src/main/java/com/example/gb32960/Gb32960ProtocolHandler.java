@@ -493,8 +493,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                 // 【修复问题2：补充可充电储能装置电压/温度数据解析】
                 switch (infoType) {
                     case 0x01: // 整车数据
-                        parseVehicleData(data, pos, parsedData);
-                        pos += 24; // 整车数据固定24字节（不含时间）
+                        parseVehicleData(data, pos, offset + length, parsedData);
+                        pos += 20; // 整车数据固定20字节
                         break;
                     case 0x02: // 驱动电机数据
                         pos = parseMotorData(data, pos, parsedData);
@@ -553,25 +553,14 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析整车数据（修复：增加异常值判断，按标准定义字段）
      */
-    private void parseVehicleData(byte[] data, int pos, StringBuilder result) {
-        // 整车数据：6字节时间 + 24字节整车信息 = 30字节（需确保数据足够）
-        if (pos + 30 > data.length) {
+    private void parseVehicleData(byte[] data, int pos, int endMark, StringBuilder result) {
+        // 整车数据：20字节
+        if (pos + 20 > endMark) {
             logger.error("整车数据长度不足，跳过解析");
             return;
         }
 
-        // 1. 数据采集时间
-        int year = 2000 + (data[pos] & 0xFF);
-        int month = data[pos + 1] & 0xFF;
-        int day = data[pos + 2] & 0xFF;
-        int hour = data[pos + 3] & 0xFF;
-        int minute = data[pos + 4] & 0xFF;
-        int second = data[pos + 5] & 0xFF;
-        result.append(String.format("\"collectTime\":\"%04d-%02d-%02d %02d:%02d:%02d\",",
-                year, month, day, hour, minute, second));
-        pos += 6;
-
-        // 2. 整车核心数据（按标准定义，增加异常值判断）
+        // 整车核心数据（按标准定义，增加异常值判断）
         byte vehicleStatus = data[pos];
         byte chargeStatus = data[pos + 1];
         byte runMode = data[pos + 2];
@@ -1191,7 +1180,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
                 switch (infoType) {
                     case 0x01:
-                        parseVehicleData(data, pos, parsedData);
+                        parseVehicleData(data, pos, offset + length, parsedData);
                         pos += 26;
                         break;
                     case 0x02:
