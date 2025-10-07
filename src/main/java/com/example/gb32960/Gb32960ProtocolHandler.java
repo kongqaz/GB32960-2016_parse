@@ -497,10 +497,10 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos += 20; // 整车数据固定20字节
                         break;
                     case 0x02: // 驱动电机数据
-                        pos = parseMotorData(data, pos, parsedData);
+                        pos = parseMotorData(data, pos, offset + length, parsedData);
                         break;
                     case 0x03: // 燃料电池数据
-                        pos = parseFuelCellData(data, pos, parsedData);
+                        pos = parseFuelCellData(data, pos, offset + length, parsedData);
                         break;
                     case 0x04: // 发动机数据
                         parseEngineData(data, pos, parsedData);
@@ -539,8 +539,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                     vin, formattedTime, dataJson
             );
 
-            logger.info("处理实时数据 - VIN: {}, 采集时间: {} {}, 数据长度: {}字节",
-                    vin, collectYear, collectMonth, collectDay, collectHour, collectMinute, collectSecond, length);
+            loggerDebug.info("实时数据数据单元{}字节: {}", length, bytesToHex(data, offset, length));
             loggerDebug.info("实时数据解析结果: {}", jsonData);
             databaseService.saveRealTimeData(vin, jsonData, formattedTime);
 //            dataQueue.offer(jsonData);
@@ -573,23 +572,21 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         byte dcStatus = data[pos + 14];
         byte gear = data[pos + 15];
         int resistanceRaw = ((data[pos + 16] & 0xFF) << 8) | (data[pos + 17] & 0xFF);
-        byte accelerator = data[pos + 18];
-        byte brake = data[pos + 19];
+//        byte accelerator = data[pos + 18];
+//        byte brake = data[pos + 19];
 
         // 处理异常值（按标准：0xFE=异常，0xFF=无效）
-        String vehicleStatusStr = (vehicleStatus == 0xFE) ? "异常" : (vehicleStatus == 0xFF) ? "无效" : String.valueOf(vehicleStatus);
-        String chargeStatusStr = (chargeStatus == 0xFE) ? "异常" : (chargeStatus == 0xFF) ? "无效" : String.valueOf(chargeStatus);
-        String runModeStr = (runMode == 0xFE) ? "异常" : (runMode == 0xFF) ? "无效" : String.valueOf(runMode);
+        String vehicleStatusStr = getVehicleStatus(vehicleStatus);
+        String chargeStatusStr = getChargeStatus(chargeStatus);
+        String runModeStr = getRunMode(runMode);
         String speedStr = (speedRaw == 0xFFFE) ? "异常" : (speedRaw == 0xFFFF) ? "无效" : String.format("%.1f", speedRaw / 10.0f);
-        String mileageStr = (mileageRaw == 0xFFFFFFFEL) ? "异常" : (mileageRaw == 0xFFFFFFFFL) ? "无效" : String.valueOf(mileageRaw / 10.0f);
-        String voltageStr = (voltageRaw == 0xFFFE) ? "异常" : (voltageRaw == 0xFFFF) ? "无效" : String.valueOf(voltageRaw / 10.0f);
-        String currentStr = (currentRaw == 0xFFFE) ? "异常" : (currentRaw == 0xFFFF) ? "无效" : String.valueOf((currentRaw - 10000) / 10.0f);
-        String socStr = (socRaw == 0xFE) ? "异常" : (socRaw == 0xFF) ? "无效" : String.valueOf(socRaw);
-        String dcStatusStr = (dcStatus == 0xFE) ? "异常" : (dcStatus == 0xFF) ? "无效" : String.valueOf(dcStatus);
-        String gearStr = (gear == 0xFE) ? "异常" : (gear == 0xFF) ? "无效" : parseGear(gear);
+        String mileageStr = (mileageRaw == 0xFFFFFFFEL) ? "异常" : (mileageRaw == 0xFFFFFFFFL) ? "无效" : String.format("%.1f", mileageRaw / 10.0f);
+        String voltageStr = (voltageRaw == 0xFFFE) ? "异常" : (voltageRaw == 0xFFFF) ? "无效" : String.format("%.1f", voltageRaw / 10.0f);
+        String currentStr = (currentRaw == 0xFFFE) ? "异常" : (currentRaw == 0xFFFF) ? "无效" : String.format("%.1f", (currentRaw - 10000) / 10.0f);
+        String socStr = (socRaw == (byte)0xFE) ? "异常" : (socRaw == (byte)0xFF) ? "无效" : String.valueOf(socRaw);
+        String dcStatusStr = getDcStatus(dcStatus);
+        String gearStr = parseGear(gear);
         String resistanceStr = (resistanceRaw > 60000) ? "无效" : String.valueOf(resistanceRaw);
-        String acceleratorStr = (accelerator == 0xFE) ? "异常" : (accelerator == 0xFF) ? "无效" : String.valueOf(accelerator);
-        String brakeStr = (brake == 0xFE) ? "异常" : (brake == 0xFF) ? "无效" : (brake == 0x65) ? "有效" : String.valueOf(brake);
 
         // 拼接JSON
         result.append("\"vehicleData\":{");
@@ -604,9 +601,53 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"dcDcStatus\":\"%s\",", dcStatusStr));
         result.append(String.format("\"gear\":\"%s\",", gearStr));
         result.append(String.format("\"insulationResistance\":\"%s\",", resistanceStr));
-        result.append(String.format("\"accelerator\":\"%s\",", acceleratorStr));
-        result.append(String.format("\"brake\":\"%s\"", brakeStr));
+//        result.append(String.format("\"accelerator\":\"%s\",", acceleratorStr));
+//        result.append(String.format("\"brake\":\"%s\"", brakeStr));
         result.append("},");
+    }
+
+    private String getVehicleStatus(byte status) {
+        switch (status) {
+            case 0x01: return "车辆启动状态";
+            case 0x02: return "熄火";
+            case 0x03: return "其他状态";
+            case (byte)0xFE: return "异常";
+            case (byte)0xFF: return "无效";
+            default: return String.valueOf(status);
+        }
+    }
+
+    private String getChargeStatus(byte status) {
+        switch (status) {
+            case 0x01: return "停车充电";
+            case 0x02: return "行驶充电";
+            case 0x03: return "未充电状态";
+            case 0x04: return "充电完成";
+            case (byte)0xFE: return "异常";
+            case (byte)0xFF: return "无效";
+            default: return String.valueOf(status);
+        }
+    }
+
+    private String getRunMode(byte mode) {
+        switch (mode) {
+            case 0x01: return "纯电";
+            case 0x02: return "混动";
+            case 0x03: return "燃油";
+            case (byte)0xFE: return "异常";
+            case (byte)0xFF: return "无效";
+            default: return String.valueOf(mode);
+        }
+    }
+
+    private String getDcStatus(byte status) {
+        switch (status) {
+            case 0x01: return "工作";
+            case 0x02: return "断开";
+            case (byte)0xFE: return "异常";
+            case (byte)0xFF: return "无效";
+            default: return String.valueOf(status);
+        }
     }
 
     /**
@@ -632,7 +673,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析驱动电机数据（按标准：1字节个数 + N×12字节电机信息）
      */
-    private int parseMotorData(byte[] data, int pos, StringBuilder result) {
+    private int parseMotorData(byte[] data, int pos, int endMark, StringBuilder result) {
         if (pos + 1 > data.length) {
             logger.error("驱动电机数据长度不足，跳过解析");
             return pos;
@@ -642,7 +683,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         pos++;
 
         // 校验电机数据长度（每个电机12字节）
-        if (motorCount <= 0 || pos + motorCount * 12 > data.length) {
+        if (motorCount <= 0 || pos + motorCount * 12 > endMark) {
             logger.error("驱动电机个数无效（{}）或数据不足，跳过解析", motorCount);
             return pos;
         }
@@ -650,23 +691,23 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"motorCount\":%d,\"motors\":[", motorCount));
         for (int i = 0; i < motorCount; i++) {
             int motorPos = pos + i * 12;
-            byte seq = data[motorPos];
+            int seq = data[motorPos] & 0xFF;
             byte status = data[motorPos + 1];
-            byte controllerTempRaw = data[motorPos + 2];
+            int controllerTempRaw = data[motorPos + 2] & 0xFF;
             int speedRaw = ((data[motorPos + 3] & 0xFF) << 8) | (data[motorPos + 4] & 0xFF);
             int torqueRaw = ((data[motorPos + 5] & 0xFF) << 8) | (data[motorPos + 6] & 0xFF);
-            byte motorTempRaw = data[motorPos + 7];
+            int motorTempRaw = data[motorPos + 7] & 0xFF;
             int controllerVoltageRaw = ((data[motorPos + 8] & 0xFF) << 8) | (data[motorPos + 9] & 0xFF);
             int controllerCurrentRaw = ((data[motorPos + 10] & 0xFF) << 8) | (data[motorPos + 11] & 0xFF);
 
             // 处理异常值与偏移量
-            String statusStr = (status == 0xFE) ? "异常" : (status == 0xFF) ? "无效" : String.valueOf(status);
+            String statusStr = getMotorStatus(status);
             String controllerTempStr = (controllerTempRaw == 0xFE) ? "异常" : (controllerTempRaw == 0xFF) ? "无效" : String.valueOf(controllerTempRaw - 40);
             String speedStr = (speedRaw == 0xFFFE) ? "异常" : (speedRaw == 0xFFFF) ? "无效" : String.valueOf(speedRaw - 20000);
-            String torqueStr = (torqueRaw == 0xFFFE) ? "异常" : (torqueRaw == 0xFFFF) ? "无效" : String.valueOf((torqueRaw - 20000) / 10.0f);
+            String torqueStr = (torqueRaw == 0xFFFE) ? "异常" : (torqueRaw == 0xFFFF) ? "无效" : String.format("%.1f", (torqueRaw - 20000) / 10.0f);
             String motorTempStr = (motorTempRaw == 0xFE) ? "异常" : (motorTempRaw == 0xFF) ? "无效" : String.valueOf(motorTempRaw - 40);
-            String controllerVoltageStr = (controllerVoltageRaw == 0xFFFE) ? "异常" : (controllerVoltageRaw == 0xFFFF) ? "无效" : String.valueOf(controllerVoltageRaw / 10.0f);
-            String controllerCurrentStr = (controllerCurrentRaw == 0xFFFE) ? "异常" : (controllerCurrentRaw == 0xFFFF) ? "无效" : String.valueOf((controllerCurrentRaw - 10000) / 10.0f);
+            String controllerVoltageStr = (controllerVoltageRaw == 0xFFFE) ? "异常" : (controllerVoltageRaw == 0xFFFF) ? "无效" : String.format("%.1f", controllerVoltageRaw / 10.0f);
+            String controllerCurrentStr = (controllerCurrentRaw == 0xFFFE) ? "异常" : (controllerCurrentRaw == 0xFFFF) ? "无效" : String.format("%.1f", (controllerCurrentRaw - 10000) / 10.0f);
 
             // 拼接电机JSON
             if (i > 0) result.append(",");
@@ -685,13 +726,25 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         return pos + motorCount * 12;
     }
 
+    private String getMotorStatus(byte motorStatus) {
+        switch (motorStatus) {
+            case 0x01: return "耗电";
+            case 0x02: return "发电";
+            case 0x03: return "关闭状态";
+            case 0x04: return "准备状态";
+            case (byte)0xFE: return "异常";
+            case (byte)0xFF: return "无效";
+            default: return String.valueOf(motorStatus);
+        }
+    }
+
     /**
      * 解析燃料电池数据（修复：温度探针总数为2字节WORD类型，按标准解析）
      */
-    private int parseFuelCellData(byte[] data, int pos, StringBuilder result) {
-        // 燃料电池基础数据长度：11字节（2电压+2电流+2消耗率+2探针数+2最高温度+2最高压力 + 1保留？修正为标准11字节）
-        if (pos + 11 > data.length) {
-            logger.error("燃料电池数据长度不足（最小11字节），跳过解析");
+    private int parseFuelCellData(byte[] data, int pos, int endMark, StringBuilder result) {
+        // 燃料电池基础数据长度：8字节（2电压+2电流+2消耗率+2探针数）
+        if (pos + 8 > endMark) {
+            logger.error("燃料电池数据长度不足（最小8字节），跳过解析");
             return pos;
         }
 
@@ -700,17 +753,17 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         int currentRaw = ((data[pos + 2] & 0xFF) << 8) | (data[pos + 3] & 0xFF);
         int consumptionRaw = ((data[pos + 4] & 0xFF) << 8) | (data[pos + 5] & 0xFF);
         int probeCount = ((data[pos + 6] & 0xFF) << 8) | (data[pos + 7] & 0xFF); // 修复：2字节WORD类型
-        int maxTempRaw = ((data[pos + 8] & 0xFF) << 8) | (data[pos + 9] & 0xFF);
-        int maxPressureRaw = ((data[pos + 10] & 0xFF) << 8) | (data[pos + 11] & 0xFF);
-        pos += 12; // 基础数据12字节
+//        int maxTempRaw = ((data[pos + 8] & 0xFF) << 8) | (data[pos + 9] & 0xFF);
+//        int maxPressureRaw = ((data[pos + 10] & 0xFF) << 8) | (data[pos + 11] & 0xFF);
+        pos += 8; // 基础数据8字节
 
         // 处理异常值
-        String voltageStr = (voltageRaw == 0xFFFE) ? "异常" : (voltageRaw == 0xFFFF) ? "无效" : String.valueOf(voltageRaw / 10.0f);
-        String currentStr = (currentRaw == 0xFFFE) ? "异常" : (currentRaw == 0xFFFF) ? "无效" : String.valueOf(currentRaw / 10.0f);
-        String consumptionStr = (consumptionRaw == 0xFFFE) ? "异常" : (consumptionRaw == 0xFFFF) ? "无效" : String.valueOf(consumptionRaw / 100.0f);
+        String voltageStr = (voltageRaw == 0xFFFE) ? "异常" : (voltageRaw == 0xFFFF) ? "无效" : String.format("%.1f", voltageRaw / 10.0f);
+        String currentStr = (currentRaw == 0xFFFE) ? "异常" : (currentRaw == 0xFFFF) ? "无效" : String.format("%.1f", currentRaw / 10.0f);
+        String consumptionStr = (consumptionRaw == 0xFFFE) ? "异常" : (consumptionRaw == 0xFFFF) ? "无效" : String.format("%.2f", consumptionRaw / 100.0f);
         String probeCountStr = (probeCount == 0xFFFE) ? "异常" : (probeCount == 0xFFFF) ? "无效" : String.valueOf(probeCount);
-        String maxTempStr = (maxTempRaw == 0xFFFE) ? "异常" : (maxTempRaw == 0xFFFF) ? "无效" : String.valueOf((maxTempRaw / 10.0f) - 40);
-        String maxPressureStr = (maxPressureRaw == 0xFFFE) ? "异常" : (maxPressureRaw == 0xFFFF) ? "无效" : String.valueOf(maxPressureRaw / 10.0f);
+//        String maxTempStr = (maxTempRaw == 0xFFFE) ? "异常" : (maxTempRaw == 0xFFFF) ? "无效" : String.valueOf((maxTempRaw / 10.0f) - 40);
+//        String maxPressureStr = (maxPressureRaw == 0xFFFE) ? "异常" : (maxPressureRaw == 0xFFFF) ? "无效" : String.valueOf(maxPressureRaw / 10.0f);
 
         // 拼接基础JSON
         result.append("\"fuelCellData\":{");
@@ -718,14 +771,14 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"fuelCurrent\":\"%s\",", currentStr));
         result.append(String.format("\"fuelConsumption\":\"%s\",", consumptionStr));
         result.append(String.format("\"probeCount\":\"%s\",", probeCountStr));
-        result.append(String.format("\"maxTemp\":\"%s\",", maxTempStr));
-        result.append(String.format("\"maxPressure\":\"%s\"", maxPressureStr));
+//        result.append(String.format("\"maxTemp\":\"%s\",", maxTempStr));
+//        result.append(String.format("\"maxPressure\":\"%s\"", maxPressureStr));
 
         // 解析探针温度（1字节/个）
-        if (probeCount > 0 && pos + probeCount <= data.length) {
+        if (probeCount > 0 && pos + probeCount <= endMark) {
             result.append(",\"probeTemps\":[");
             for (int i = 0; i < probeCount; i++) {
-                byte tempRaw = data[pos + i];
+                int tempRaw = data[pos + i] & 0xFF;
                 String tempStr = (tempRaw == 0xFE) ? "异常" : (tempRaw == 0xFF) ? "无效" : String.valueOf(tempRaw - 40);
                 if (i > 0) result.append(",");
                 result.append("\"").append(tempStr).append("\"");
@@ -1184,10 +1237,10 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos += 26;
                         break;
                     case 0x02:
-                        pos = parseMotorData(data, pos, parsedData);
+                        pos = parseMotorData(data, pos, offset + length, parsedData);
                         break;
                     case 0x03:
-                        pos = parseFuelCellData(data, pos, parsedData);
+                        pos = parseFuelCellData(data, pos, offset + length, parsedData);
                         break;
                     case 0x04:
                         parseEngineData(data, pos, parsedData);
