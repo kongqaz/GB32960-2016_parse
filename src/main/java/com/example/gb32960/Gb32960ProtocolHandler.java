@@ -503,16 +503,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos = parseFuelCellData(data, pos, offset + length, parsedData);
                         break;
                     case 0x04: // 发动机数据
-                        parseEngineData(data, pos, parsedData);
+                        parseEngineData(data, pos, offset + length, parsedData);
                         pos += 5;
                         break;
                     case 0x05: // 车辆位置数据
                         // 【修复问题5：处理定位有效性与历史数据】
-                        parseLocationData(data, pos, parsedData);
+                        parseLocationData(data, pos, offset + length, parsedData);
                         pos += 9;
                         break;
                     case 0x06: // 极值数据
-                        parseExtremeData(data, pos, parsedData);
+                        parseExtremeData(data, pos, offset + length, parsedData);
                         pos += 14;
                         break;
                     case 0x07: // 报警数据
@@ -794,8 +794,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析发动机数据（按标准定义）
      */
-    private void parseEngineData(byte[] data, int pos, StringBuilder result) {
-        if (pos + 5 > data.length) {
+    private void parseEngineData(byte[] data, int pos, int endMark, StringBuilder result) {
+        if (pos + 5 > endMark) {
             logger.error("发动机数据长度不足（5字节），跳过解析");
             return;
         }
@@ -805,9 +805,9 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         int consumptionRaw = ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF);
 
         // 处理异常值
-        String statusStr = (status == 0xFE) ? "异常" : (status == 0xFF) ? "无效" : String.valueOf(status);
+        String statusStr = getEngineStatus(status);
         String crankshaftSpeedStr = (crankshaftSpeedRaw == 0xFFFE) ? "异常" : (crankshaftSpeedRaw == 0xFFFF) ? "无效" : String.valueOf(crankshaftSpeedRaw);
-        String consumptionStr = (consumptionRaw == 0xFFFE) ? "异常" : (consumptionRaw == 0xFFFF) ? "无效" : String.valueOf(consumptionRaw / 100.0f);
+        String consumptionStr = (consumptionRaw == 0xFFFE) ? "异常" : (consumptionRaw == 0xFFFF) ? "无效" : String.format("%.2f", consumptionRaw / 100.0f);
 
         // 拼接JSON
         result.append("\"engineData\":{");
@@ -817,11 +817,21 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append("},");
     }
 
+    private String getEngineStatus(byte engineStatus) {
+        switch (engineStatus) {
+            case 0x01: return "启动状态";
+            case 0x02: return "关闭状态";
+            case (byte)0xFE: return "异常";
+            case (byte)0xFF: return "无效";
+            default: return String.valueOf(engineStatus);
+        }
+    }
+
     /**
      * 解析车辆位置数据（按标准处理经纬度偏移）
      */
-    private void parseLocationData(byte[] data, int pos, StringBuilder result) {
-        if (pos + 9 > data.length) {
+    private void parseLocationData(byte[] data, int pos, int endMark, StringBuilder result) {
+        if (pos + 9 > endMark) {
             logger.error("车辆位置数据长度不足（9字节），跳过解析");
             return;
         }
@@ -852,14 +862,14 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析极值数据（按标准处理偏移量与异常值）
      */
-    private void parseExtremeData(byte[] data, int pos, StringBuilder result) {
-        if (pos + 14 > data.length) {
+    private void parseExtremeData(byte[] data, int pos, int endMark, StringBuilder result) {
+        if (pos + 14 > endMark) {
             logger.error("极值数据长度不足（14字节），跳过解析");
             return;
         }
 
         // 解析字段
-        byte maxVoltSys = data[pos];
+        int maxVoltSys = data[pos] & 0xFF;
         byte maxVoltCell = data[pos + 1];
         int maxVoltRaw = ((data[pos + 2] & 0xFF) << 8) | (data[pos + 3] & 0xFF);
         byte minVoltSys = data[pos + 4];
@@ -1234,7 +1244,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                 switch (infoType) {
                     case 0x01:
                         parseVehicleData(data, pos, offset + length, parsedData);
-                        pos += 26;
+                        pos += 20;
                         break;
                     case 0x02:
                         pos = parseMotorData(data, pos, offset + length, parsedData);
@@ -1243,15 +1253,15 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos = parseFuelCellData(data, pos, offset + length, parsedData);
                         break;
                     case 0x04:
-                        parseEngineData(data, pos, parsedData);
+                        parseEngineData(data, pos, offset + length, parsedData);
                         pos += 5;
                         break;
                     case 0x05:
-                        parseLocationData(data, pos, parsedData);
+                        parseLocationData(data, pos, offset + length, parsedData);
                         pos += 9;
                         break;
                     case 0x06:
-                        parseExtremeData(data, pos, parsedData);
+                        parseExtremeData(data, pos, offset + length, parsedData);
                         pos += 14;
                         break;
                     case 0x07:
