@@ -600,7 +600,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"soc\":\"%s\",", socStr));
         result.append(String.format("\"dcDcStatus\":\"%s\",", dcStatusStr));
         result.append(String.format("\"gear\":\"%s\",", gearStr));
-        result.append(String.format("\"insulationResistance\":\"%s\",", resistanceStr));
+        result.append(String.format("\"insulationResistance\":\"%s\"", resistanceStr));
 //        result.append(String.format("\"accelerator\":\"%s\",", acceleratorStr));
 //        result.append(String.format("\"brake\":\"%s\"", brakeStr));
         result.append("},");
@@ -935,12 +935,11 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
         // 拼接基础JSON
         result.append("\"alarmData\":{");
-        result.append(String.format("\"maxAlarmLevel\":\"%s\",", maxAlarmLevelStr));
+        result.append(String.format("\"maxAlarmLevel\":\"%s\"", maxAlarmLevelStr));
         List<String> alarmTypes = parseGeneralAlarm(generalAlarm);
-        result.append(String.format("\"alarmTypes\":%s", String.join(",", alarmTypes)));
-
         if(!alarmTypes.isEmpty()){
             bHasAlarm = true;
+            result.append(String.format(",\"alarmTypes\":\"%s\"", String.join(",", alarmTypes)));
         }
 
         // 解析可充电储能装置故障（1字节个数 + N×4字节故障代码）
