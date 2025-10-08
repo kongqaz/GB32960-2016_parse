@@ -516,7 +516,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos += 14;
                         break;
                     case 0x07: // 报警数据
-                        pos = parseAlarmData(data, pos, parsedData);
+                        pos = parseAlarmData(data, pos, offset + length, parsedData);
                         break;
 //                    case INFO_TYPE_ENERGY_VOLTAGE: // 可充电储能装置电压数据（新增）
 //                        pos = parseEnergyVoltageData(data, pos, parsedData);
@@ -870,25 +870,25 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
         // 解析字段
         int maxVoltSys = data[pos] & 0xFF;
-        byte maxVoltCell = data[pos + 1];
+        int maxVoltCell = data[pos + 1] & 0xFF;
         int maxVoltRaw = ((data[pos + 2] & 0xFF) << 8) | (data[pos + 3] & 0xFF);
-        byte minVoltSys = data[pos + 4];
-        byte minVoltCell = data[pos + 5];
+        int minVoltSys = data[pos + 4] & 0xFF;
+        int minVoltCell = data[pos + 5] & 0xFF;
         int minVoltRaw = ((data[pos + 6] & 0xFF) << 8) | (data[pos + 7] & 0xFF);
-        byte maxTempSys = data[pos + 8];
-        byte maxTempProbe = data[pos + 9];
-        byte maxTempRaw = data[pos + 10];
-        byte minTempSys = data[pos + 11];
-        byte minTempProbe = data[pos + 12];
-        byte minTempRaw = data[pos + 13];
+        int maxTempSys = data[pos + 8] & 0xFF;
+        int maxTempProbe = data[pos + 9] & 0xFF;
+        int maxTempRaw = data[pos + 10] & 0xFF;
+        int minTempSys = data[pos + 11] & 0xFF;
+        int minTempProbe = data[pos + 12] & 0xFF;
+        int minTempRaw = data[pos + 13] & 0xFF;
 
         // 处理异常值与单位转换
         String maxVoltSysStr = (maxVoltSys == 0xFE) ? "异常" : (maxVoltSys == 0xFF) ? "无效" : String.valueOf(maxVoltSys);
         String maxVoltCellStr = (maxVoltCell == 0xFE) ? "异常" : (maxVoltCell == 0xFF) ? "无效" : String.valueOf(maxVoltCell);
-        String maxVoltStr = (maxVoltRaw == 0xFFFE) ? "异常" : (maxVoltRaw == 0xFFFF) ? "无效" : String.valueOf(maxVoltRaw / 1000.0f);
+        String maxVoltStr = (maxVoltRaw == 0xFFFE) ? "异常" : (maxVoltRaw == 0xFFFF) ? "无效" : String.format("%.3f", maxVoltRaw / 1000.0f);
         String minVoltSysStr = (minVoltSys == 0xFE) ? "异常" : (minVoltSys == 0xFF) ? "无效" : String.valueOf(minVoltSys);
         String minVoltCellStr = (minVoltCell == 0xFE) ? "异常" : (minVoltCell == 0xFF) ? "无效" : String.valueOf(minVoltCell);
-        String minVoltStr = (minVoltRaw == 0xFFFE) ? "异常" : (minVoltRaw == 0xFFFF) ? "无效" : String.valueOf(minVoltRaw / 1000.0f);
+        String minVoltStr = (minVoltRaw == 0xFFFE) ? "异常" : (minVoltRaw == 0xFFFF) ? "无效" : String.format("%.3f", minVoltRaw / 1000.0f);
         String maxTempSysStr = (maxTempSys == 0xFE) ? "异常" : (maxTempSys == 0xFF) ? "无效" : String.valueOf(maxTempSys);
         String maxTempProbeStr = (maxTempProbe == 0xFE) ? "异常" : (maxTempProbe == 0xFF) ? "无效" : String.valueOf(maxTempProbe);
         String maxTempStr = (maxTempRaw == 0xFE) ? "异常" : (maxTempRaw == 0xFF) ? "无效" : String.valueOf(maxTempRaw - 40);
@@ -916,14 +916,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析报警数据（修复：解析故障代码列表，按标准处理多类型故障）
      */
-    private int parseAlarmData(byte[] data, int pos, StringBuilder result) {
-        if (pos + 5 > data.length) {
-            logger.error("报警数据长度不足（最小5字节），跳过解析");
+    private int parseAlarmData(byte[] data, int pos, int endMark, StringBuilder result) {
+        if (pos + 9 > endMark) {
+            logger.error("报警数据长度不足（最小9字节），跳过解析");
             return pos;
         }
 
+        boolean bHasAlarm = false;
+
         // 解析基础报警字段
-        byte maxAlarmLevel = data[pos];
+        int maxAlarmLevel = data[pos] & 0xFF;
         long generalAlarm = ((long) (data[pos + 1] & 0xFF) << 24) | ((data[pos + 2] & 0xFF) << 16) |
                 ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF);
         pos += 5;
@@ -934,19 +936,25 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         // 拼接基础JSON
         result.append("\"alarmData\":{");
         result.append(String.format("\"maxAlarmLevel\":\"%s\",", maxAlarmLevelStr));
-        result.append(String.format("\"generalAlarm\":%d", generalAlarm));
+        List<String> alarmTypes = parseGeneralAlarm(generalAlarm);
+        result.append(String.format("\"alarmTypes\":%s", String.join(",", alarmTypes)));
+
+        if(!alarmTypes.isEmpty()){
+            bHasAlarm = true;
+        }
 
         // 解析可充电储能装置故障（1字节个数 + N×4字节故障代码）
-        if (pos + 1 <= data.length) {
+        if (pos + 1 <= endMark) {
             int energyFaultCount = data[pos] & 0xFF;
             pos++;
-            if (energyFaultCount > 0 && pos + energyFaultCount * 4 <= data.length) {
+            if (energyFaultCount > 0 && energyFaultCount < 0xFE && pos + energyFaultCount * 4 <= endMark) {
+                bHasAlarm = true;
                 result.append(",\"energyStorageFaults\":[");
                 for (int i = 0; i < energyFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
-                    result.append(faultCode);
+                    result.append(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += energyFaultCount * 4;
@@ -954,16 +962,17 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 解析驱动电机故障
-        if (pos + 1 <= data.length) {
+        if (pos + 1 <= endMark) {
             int motorFaultCount = data[pos] & 0xFF;
             pos++;
-            if (motorFaultCount > 0 && pos + motorFaultCount * 4 <= data.length) {
+            if (motorFaultCount > 0 && motorFaultCount < 0xFE && pos + motorFaultCount * 4 <= endMark) {
+                bHasAlarm = true;
                 result.append(",\"motorFaults\":[");
                 for (int i = 0; i < motorFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
-                    result.append(faultCode);
+                    result.append(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += motorFaultCount * 4;
@@ -971,16 +980,17 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 解析发动机故障
-        if (pos + 1 <= data.length) {
+        if (pos + 1 <= endMark) {
             int engineFaultCount = data[pos] & 0xFF;
             pos++;
-            if (engineFaultCount > 0 && pos + engineFaultCount * 4 <= data.length) {
+            if (engineFaultCount > 0 && engineFaultCount < 0xFE && pos + engineFaultCount * 4 <= endMark) {
+                bHasAlarm = true;
                 result.append(",\"engineFaults\":[");
                 for (int i = 0; i < engineFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
-                    result.append(faultCode);
+                    result.append(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += engineFaultCount * 4;
@@ -988,16 +998,17 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 解析其他故障
-        if (pos + 1 <= data.length) {
+        if (pos + 1 <= endMark) {
             int otherFaultCount = data[pos] & 0xFF;
             pos++;
-            if (otherFaultCount > 0 && pos + otherFaultCount * 4 <= data.length) {
+            if (otherFaultCount > 0 && otherFaultCount < 0xFE && pos + otherFaultCount * 4 <= endMark) {
+                bHasAlarm = true;
                 result.append(",\"otherFaults\":[");
                 for (int i = 0; i < otherFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
-                    result.append(faultCode);
+                    result.append(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += otherFaultCount * 4;
@@ -1005,9 +1016,88 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         }
 
         result.append("},");
+
+        if(bHasAlarm){
+            //TODO: 报错报警数据到mysql
+        }
         return pos;
     }
 
+    /**
+     * 解析通用报警标志位，返回对应的报警类型字符串列表
+     */
+    private List<String> parseGeneralAlarm(long generalAlarm) {
+        List<String> alarmTypes = new ArrayList<>();
+
+        // 按位检查每个报警标志
+        for (int bit = 0; bit <= 18; bit++) {
+            if ((generalAlarm & (1L << bit)) != 0) {
+                switch (bit) {
+                    case 0:
+                        alarmTypes.add("温度差异报警");
+                        break;
+                    case 1:
+                        alarmTypes.add("电池高温报警");
+                        break;
+                    case 2:
+                        alarmTypes.add("车载储能装置类型过压报警");
+                        break;
+                    case 3:
+                        alarmTypes.add("车载储能装置类型欠压报警");
+                        break;
+                    case 4:
+                        alarmTypes.add("SOC低报警");
+                        break;
+                    case 5:
+                        alarmTypes.add("单体电池过压报警");
+                        break;
+                    case 6:
+                        alarmTypes.add("单体电池欠压报警");
+                        break;
+                    case 7:
+                        alarmTypes.add("SOC过高报警");
+                        break;
+                    case 8:
+                        alarmTypes.add("SOC跳变报警");
+                        break;
+                    case 9:
+                        alarmTypes.add("可充电储能系统不匹配报警");
+                        break;
+                    case 10:
+                        alarmTypes.add("电池单体一致性差报警");
+                        break;
+                    case 11:
+                        alarmTypes.add("绝缘报警");
+                        break;
+                    case 12:
+                        alarmTypes.add("DC-DC温度报警");
+                        break;
+                    case 13:
+                        alarmTypes.add("制动系统报警");
+                        break;
+                    case 14:
+                        alarmTypes.add("DC-DC状态报警");
+                        break;
+                    case 15:
+                        alarmTypes.add("驱动电机控制器温度报警");
+                        break;
+                    case 16:
+                        alarmTypes.add("高压互锁状态报警");
+                        break;
+                    case 17:
+                        alarmTypes.add("驱动电机温度报警");
+                        break;
+                    case 18:
+                        alarmTypes.add("车载储能装置类型过充报警");
+                        break;
+                    default:
+                        // 19~31位预留
+                        break;
+                }
+            }
+        }
+        return alarmTypes;
+    }
 
     /**
      * 解析GB32960实时数据单元
@@ -1265,7 +1355,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos += 14;
                         break;
                     case 0x07:
-                        pos = parseAlarmData(data, pos, parsedData);
+                        pos = parseAlarmData(data, pos, offset + length, parsedData);
                         break;
                     default:
                         logger.warn("未知信息类型标志: 0x{}，跳过", String.format("%02X", infoType));
