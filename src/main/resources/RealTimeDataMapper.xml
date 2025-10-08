@@ -16,7 +16,7 @@
             id BIGINT AUTO_INCREMENT PRIMARY KEY,
             vin VARCHAR(50) NOT NULL UNIQUE,
             json_data TEXT NOT NULL,
-            update_time VARCHAR(20) NOT NULL,
+            update_time VARCHAR(23) NOT NULL,
             INDEX idx_vin (vin)
         )
     </update>
