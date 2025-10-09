@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.Gb32960ParserApplication;
 import com.example.entity.RealTimeData;
 import com.example.mapper.RealTimeDataMapper;
+import com.example.mapper.VehicleLoginLogoutMapper;
 import com.typesafe.config.Config;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -20,6 +21,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class DatabaseService {
@@ -83,11 +86,16 @@ public class DatabaseService {
 //            parsedConfiguration.setEnvironment(environment); // 替换数据源环境
 
             // 显式添加 XML 资源
-            String resource = "RealTimeDataMapper.xml";
-            InputStream inputStream = Resources.getResourceAsStream(resource);
-            XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
-            mapperParser.parse();
-            inputStream.close();
+            String[] mapperResources = {
+                    "RealTimeDataMapper.xml",
+                    "mapper/VehicleLoginLogoutMapper.xml"
+            };
+            for (String resource : mapperResources) {
+                InputStream inputStream = Resources.getResourceAsStream(resource);
+                XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
+                mapperParser.parse();
+                inputStream.close();
+            }
 
 //            configuration.addMapper(RealTimeDataMapper.class);
 //            configuration.addMappers("com.example.mapper");
@@ -150,6 +158,45 @@ public class DatabaseService {
         try (SqlSession session = sqlSessionFactory.openSession()) {
             RealTimeDataMapper mapper = session.getMapper(RealTimeDataMapper.class);
             return mapper.selectAll();
+        }
+    }
+
+    public void saveVehicleLogin(String vin, int serialNo, LocalDateTime loginTime) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            VehicleLoginLogoutMapper mapper = session.getMapper(VehicleLoginLogoutMapper.class);
+            int ret = mapper.insertOrUpdateLogin(vin, serialNo, loginTime);
+            // 提交事务
+            session.commit();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = loginTime.format(formatter);
+            logger.info("车辆登录记录已保存 - VIN:{}, SerialNo:{}, loginTime:{}, ret:{}", vin, serialNo, formattedTime, ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = loginTime.format(formatter);
+                logger.error("保存车辆登录记录失败 - VIN:{}, loginTime:{}", vin, formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存车辆登录记录失败2", ex);
+            }
+        }
+    }
+
+    public void saveVehicleLogout(String vin, int serialNo, LocalDateTime logoutTime) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            VehicleLoginLogoutMapper mapper = session.getMapper(VehicleLoginLogoutMapper.class);
+            int ret = mapper.updateLogout(vin, serialNo, logoutTime);
+            session.commit();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = logoutTime.format(formatter);
+            logger.info("车辆登出记录已保存 - VIN:{}, SerialNo:{}, logoutTime:{}, ret:{}", vin, serialNo, formattedTime, ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = logoutTime.format(formatter);
+                logger.error("保存车辆登出记录失败 - VIN:{}, logoutTime:{}", vin, formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存车辆登出记录失败2", ex);
+            }
         }
     }
 }

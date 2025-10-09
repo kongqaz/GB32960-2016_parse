@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.VehicleLoginLogoutMapper">
+
+    <select id="selectIdByVin" resultType="java.lang.Long">
+        SELECT id FROM t_vehicle_login_logout WHERE vin = #{vin}
+    </select>
+
+    <select id="selectMaxId" resultType="java.lang.Long">
+        SELECT MAX(id) FROM t_vehicle_login_logout
+    </select>
+
+    <insert id="insertOrUpdateLogin">
+        INSERT INTO t_vehicle_login_logout (vin, login_serial_no, login_time)
+        VALUES (#{vin}, #{serialNo}, #{loginTime})
+        ON DUPLICATE KEY UPDATE
+        login_serial_no = #{serialNo},
+        login_time = #{loginTime};
+    </insert>
+
+    <update id="updateLogout">
+        UPDATE t_vehicle_login_logout
+        SET logout_serial_no = #{serialNo}, logout_time = #{logoutTime}
+        WHERE vin = #{vin};
+    </update>
+</mapper>

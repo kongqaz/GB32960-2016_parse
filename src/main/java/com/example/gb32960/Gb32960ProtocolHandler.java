@@ -452,6 +452,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
         // 发送响应
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
+        databaseService.saveVehicleLogin(vin, serialNo, LocalDateTime.of(loginTimeYear, loginTimeMonth, loginTimeDay,
+                loginTimeHour, loginTimeMinute, loginTimeSecond));
         logger.info("车辆登录成功 - VIN: {}", vin);
     }
 
@@ -1424,6 +1426,9 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         System.arraycopy(data, offset, response, 24, 8); // 复用登出时间与流水号
         response[32] = calculateBcc(response, 2, 32);
         ctx.writeAndFlush(Unpooled.copiedBuffer(response));
+
+        databaseService.saveVehicleLogout(vin, serialNo, LocalDateTime.of(logoutTimeYear, logoutTimeMonth, logoutTimeDay,
+                logoutTimeHour, logoutTimeMinute, logoutTimeSecond));
     }
 
     /**
