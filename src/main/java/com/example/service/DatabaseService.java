@@ -1,8 +1,12 @@
 package com.example.service;
 
 import com.example.Gb32960ParserApplication;
+import com.example.entity.MotorData;
 import com.example.entity.RealTimeData;
+import com.example.entity.VehicleData;
+import com.example.mapper.MotorDataMapper;
 import com.example.mapper.RealTimeDataMapper;
+import com.example.mapper.VehicleDataMapper;
 import com.example.mapper.VehicleLoginLogoutMapper;
 import com.typesafe.config.Config;
 import com.zaxxer.hikari.HikariConfig;
@@ -88,7 +92,9 @@ public class DatabaseService {
             // 显式添加 XML 资源
             String[] mapperResources = {
                     "RealTimeDataMapper.xml",
-                    "mapper/VehicleLoginLogoutMapper.xml"
+                    "mapper/VehicleLoginLogoutMapper.xml",
+                    "mapper/VehicleDataMapper.xml",
+                    "mapper/MotorDataMapper.xml"
             };
             for (String resource : mapperResources) {
                 InputStream inputStream = Resources.getResourceAsStream(resource);
@@ -196,6 +202,51 @@ public class DatabaseService {
                 logger.error("保存车辆登出记录失败 - VIN:{}, logoutTime:{}", vin, formattedTime, e);
             } catch (Exception ex) {
                 logger.error("保存车辆登出记录失败2", ex);
+            }
+        }
+    }
+
+    public void saveVehicleData(VehicleData vehicleData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            VehicleDataMapper mapper = session.getMapper(VehicleDataMapper.class);
+            int ret = mapper.insertOrUpdate(vehicleData);
+            session.commit();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = vehicleData.getCollectTime().format(formatter);
+            logger.info("整车数据已保存 - VIN:{}, collectTime:{}, ret:{}", vehicleData.getVin(), formattedTime, ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = vehicleData.getCollectTime().format(formatter);
+                logger.error("保存整车数据失败 - VIN:{}, collectTime:{}", vehicleData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存整车数据失败2", ex);
+            }
+        }
+    }
+
+    public void saveMotorData(List<MotorData> motorDataList) {
+        if (motorDataList == null || motorDataList.isEmpty()) {
+            return;
+        }
+
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            MotorDataMapper mapper = session.getMapper(MotorDataMapper.class);
+            int ret = mapper.insertOrUpdate(motorDataList);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = motorDataList.get(0).getCollectTime().format(formatter);
+            logger.info("驱动电机数据已保存 - VIN:{}, collectTime:{}, 电机数量:{}, ret:{}",
+                    motorDataList.get(0).getVin(), formattedTime, motorDataList.size(), ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = motorDataList.get(0).getCollectTime().format(formatter);
+                logger.error("保存驱动电机数据失败 - VIN:{}, collectTime:{}, 电机数量:{}",
+                        motorDataList.get(0).getVin(), formattedTime, motorDataList.size(), e);
+            } catch (Exception ex) {
+                logger.error("保存驱动电机数据失败2", ex);
             }
         }
     }

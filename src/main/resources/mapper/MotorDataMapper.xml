@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.mapper.MotorDataMapper">
+    <!-- 结果映射 -->
+    <resultMap id="motorDataResultMap" type="com.example.entity.MotorData">
+        <result property="vin" column="vin"/>
+        <result property="collectTime" column="collect_time"/>
+        <result property="motorSeq" column="motor_seq"/>
+        <result property="motorStatus" column="motor_status"/>
+        <result property="controllerTemp" column="controller_temp"/>
+        <result property="motorSpeed" column="motor_speed"/>
+        <result property="motorTorque" column="motor_torque"/>
+        <result property="motorTemp" column="motor_temp"/>
+        <result property="controllerVoltage" column="controller_voltage"/>
+        <result property="controllerCurrent" column="controller_current"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+</mapper>

@@ -1,5 +1,7 @@
 package com.example.gb32960;
 
+import com.example.entity.MotorData;
+import com.example.entity.VehicleData;
 import com.example.service.DatabaseService;
 import com.typesafe.config.Config;
 //import io.netty.buffer.ByteBuf;
@@ -484,6 +486,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             int collectSecond = data[pos + 5] & 0xFF;
             parsedData.append(String.format("\"collectTime\":\"%04d-%02d-%02d %02d:%02d:%02d\",",
                     collectYear, collectMonth, collectDay, collectHour, collectMinute, collectSecond));
+            LocalDateTime collectTime = LocalDateTime.of(collectYear, collectMonth, collectDay, collectHour, collectMinute,
+                    collectSecond);
             pos += 6; // 跳过已解析的6字节时间
 
             // 2. 解析后续的信息类型标志+信息体
@@ -495,11 +499,21 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                 // 【修复问题2：补充可充电储能装置电压/温度数据解析】
                 switch (infoType) {
                     case 0x01: // 整车数据
-                        parseVehicleData(data, pos, offset + length, parsedData);
+                        VehicleData vehicleData = new VehicleData();
+                        vehicleData.setVin(vin);
+                        vehicleData.setCollectTime(collectTime);
+                        parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
                         pos += 20; // 整车数据固定20字节
+                        databaseService.saveVehicleData(vehicleData);
                         break;
                     case 0x02: // 驱动电机数据
-                        pos = parseMotorData(data, pos, offset + length, parsedData);
+                        List<MotorData> motorDataList = new ArrayList<>();
+                        pos = parseMotorData(data, pos, offset + length, parsedData, motorDataList);
+                        for (MotorData motorData : motorDataList){
+                            motorData.setVin(vin);
+                            motorData.setCollectTime(collectTime);
+                        }
+                        databaseService.saveMotorData(motorDataList);
                         break;
                     case 0x03: // 燃料电池数据
                         pos = parseFuelCellData(data, pos, offset + length, parsedData);
@@ -554,7 +568,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析整车数据（修复：增加异常值判断，按标准定义字段）
      */
-    private void parseVehicleData(byte[] data, int pos, int endMark, StringBuilder result) {
+    private void parseVehicleData(byte[] data, int pos, int endMark, StringBuilder result, VehicleData vehicleData) {
         // 整车数据：20字节
         if (pos + 20 > endMark) {
             logger.error("整车数据长度不足，跳过解析");
@@ -606,6 +620,18 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 //        result.append(String.format("\"accelerator\":\"%s\",", acceleratorStr));
 //        result.append(String.format("\"brake\":\"%s\"", brakeStr));
         result.append("},");
+
+        vehicleData.setVehicleStatus((int) vehicleStatus & 0xFF);
+        vehicleData.setChargeStatus((int) chargeStatus & 0xFF);
+        vehicleData.setRunMode((int) runMode & 0xFF);
+        vehicleData.setSpeed(speedStr);
+        vehicleData.setMileage(mileageStr);
+        vehicleData.setTotalVoltage(voltageStr);
+        vehicleData.setTotalCurrent(currentStr);
+        vehicleData.setSoc((int) socRaw & 0xFF);
+        vehicleData.setDcDcStatus((int) dcStatus & 0xFF);
+        vehicleData.setGear(gearStr);
+        vehicleData.setInsulationResistance(resistanceRaw);
     }
 
     private String getVehicleStatus(byte status) {
@@ -675,8 +701,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析驱动电机数据（按标准：1字节个数 + N×12字节电机信息）
      */
-    private int parseMotorData(byte[] data, int pos, int endMark, StringBuilder result) {
-        if (pos + 1 > data.length) {
+    private int parseMotorData(byte[] data, int pos, int endMark, StringBuilder result, List<MotorData> motorDataList) {
+        if (pos + 1 > endMark) {
             logger.error("驱动电机数据长度不足，跳过解析");
             return pos;
         }
@@ -723,6 +749,29 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             result.append(String.format("\"controllerVoltage\":\"%s\",", controllerVoltageStr));
             result.append(String.format("\"controllerCurrent\":\"%s\"", controllerCurrentStr));
             result.append("}");
+
+            MotorData motorData = new MotorData();
+            motorData.setMotorSeq(seq);
+            motorData.setMotorStatus((int) status & 0xFF);
+            if(controllerTempRaw == 0xFE || controllerTempRaw == 0xFF){
+                motorData.setControllerTemp(controllerTempRaw);
+            } else {
+                motorData.setControllerTemp(controllerTempRaw - 40);
+            }
+            if(speedRaw == 0xFFFE || speedRaw == 0xFFFF){
+                motorData.setMotorSpeed(speedRaw);
+            } else {
+                motorData.setMotorSpeed(speedRaw - 20000);
+            }
+            motorData.setMotorTorque(torqueStr);
+            if(motorTempRaw == 0xFE || motorTempRaw == 0xFF){
+                motorData.setMotorTemp(motorTempRaw);
+            } else {
+                motorData.setMotorTemp(motorTempRaw - 40);
+            }
+            motorData.setControllerVoltage(controllerVoltageStr);
+            motorData.setControllerCurrent(controllerCurrentStr);
+            motorDataList.add(motorData);
         }
         result.append("],");
         return pos + motorCount * 12;
@@ -1327,6 +1376,23 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             parsedData.append("{");
 
             int pos = offset;
+
+            if (pos + 6 > offset + length) {
+                logger.error("补发数据缺少6字节采集时间，丢弃 - VIN: {}", vin);
+                return;
+            }
+            int collectYear = 2000 + (data[pos] & 0xFF);
+            int collectMonth = data[pos + 1] & 0xFF;
+            int collectDay = data[pos + 2] & 0xFF;
+            int collectHour = data[pos + 3] & 0xFF;
+            int collectMinute = data[pos + 4] & 0xFF;
+            int collectSecond = data[pos + 5] & 0xFF;
+            parsedData.append(String.format("\"collectTime\":\"%04d-%02d-%02d %02d:%02d:%02d\",",
+                    collectYear, collectMonth, collectDay, collectHour, collectMinute, collectSecond));
+            LocalDateTime collectTime = LocalDateTime.of(collectYear, collectMonth, collectDay, collectHour, collectMinute,
+                    collectSecond);
+            pos += 6; // 跳过已解析的6字节时间
+
             while (pos < offset + length) {
                 if (pos + 1 > offset + length) break;
                 byte infoType = data[pos];
@@ -1334,11 +1400,21 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 
                 switch (infoType) {
                     case 0x01:
-                        parseVehicleData(data, pos, offset + length, parsedData);
+                        VehicleData vehicleData = new VehicleData();
+                        vehicleData.setVin(vin);
+                        vehicleData.setCollectTime(collectTime);
+                        parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
                         pos += 20;
+                        databaseService.saveVehicleData(vehicleData);
                         break;
                     case 0x02:
-                        pos = parseMotorData(data, pos, offset + length, parsedData);
+                        List<MotorData> motorDataList = new ArrayList<>();
+                        pos = parseMotorData(data, pos, offset + length, parsedData, motorDataList);
+                        for (MotorData motorData : motorDataList){
+                            motorData.setVin(vin);
+                            motorData.setCollectTime(collectTime);
+                        }
+                        databaseService.saveMotorData(motorDataList);
                         break;
                     case 0x03:
                         pos = parseFuelCellData(data, pos, offset + length, parsedData);

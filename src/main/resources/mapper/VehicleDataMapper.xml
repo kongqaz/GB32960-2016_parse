@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.mapper.VehicleDataMapper">
+    <!-- 结果映射 -->
+    <resultMap id="vehicleDataResultMap" type="com.example.entity.VehicleData">
+        <id property="id" column="id"/>
+        <result property="vin" column="vin"/>
+        <result property="collectTime" column="collect_time"/>
+        <result property="vehicleStatus" column="vehicle_status"/>
+        <result property="chargeStatus" column="charge_status"/>
+        <result property="runMode" column="run_mode"/>
+        <result property="speed" column="speed"/>
+        <result property="mileage" column="mileage"/>
+        <result property="totalVoltage" column="total_voltage"/>
+        <result property="totalCurrent" column="total_current"/>
+        <result property="soc" column="soc"/>
+        <result property="dcDcStatus" column="dc_dc_status"/>
+        <result property="gear" column="gear"/>
+        <result property="insulationResistance" column="insulation_resistance"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+</mapper>
