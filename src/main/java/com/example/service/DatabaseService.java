@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 public class DatabaseService {
@@ -248,6 +249,101 @@ public class DatabaseService {
             } catch (Exception ex) {
                 logger.error("保存驱动电机数据失败2", ex);
             }
+        }
+    }
+
+    public boolean saveVehicleDataWithTimeCheck(VehicleData vehicleData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            VehicleDataMapper mapper = session.getMapper(VehicleDataMapper.class);
+
+            // 检查是否存在更新的记录
+            int newerRecordCount = mapper.existsNewerRecord(vehicleData.getVin(), vehicleData.getCollectTime());
+
+            if (newerRecordCount > 0) {
+                // 存在更新的记录，不保存当前数据
+                logger.info("存在更新的整车数据记录，跳过保存 - VIN: {}, collectTime: {}",
+                        vehicleData.getVin(), vehicleData.getCollectTime());
+                return false;
+            }
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(vehicleData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = vehicleData.getCollectTime().format(formatter);
+            logger.info("整车数据已保存 - VIN:{}, collectTime:{}, ret:{}", vehicleData.getVin(), formattedTime, ret);
+            return true;
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = vehicleData.getCollectTime().format(formatter);
+                logger.error("保存整车数据失败 - VIN:{}, collectTime:{}", vehicleData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存整车数据失败2", ex);
+            }
+            return false;
+        }
+    }
+
+    public boolean saveMotorDataWithTimeCheck(List<MotorData> motorDataList) {
+        if (motorDataList == null || motorDataList.isEmpty()) {
+            return false;
+        }
+
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            MotorDataMapper mapper = session.getMapper(MotorDataMapper.class);
+
+            // 过滤出需要保存的电机数据
+            List<MotorData> filteredMotorDataList = new ArrayList<>();
+
+            for (MotorData motorData : motorDataList) {
+                // 检查是否存在更新的记录
+                int newerRecordCount = mapper.existsNewerRecordForMotor(
+                        motorData.getVin(),
+                        motorData.getMotorSeq(),
+                        motorData.getCollectTime()
+                );
+
+                if (newerRecordCount > 0) {
+                    // 存在更新的记录，跳过该项
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                    String formattedTime = motorData.getCollectTime().format(formatter);
+                    logger.info("存在更新的电机数据记录，跳过保存 - VIN: {}, MotorSeq: {}, collectTime: {}",
+                            motorData.getVin(), motorData.getMotorSeq(), formattedTime);
+                } else {
+                    // 没有更新的记录，需要保存
+                    filteredMotorDataList.add(motorData);
+                }
+            }
+
+            // 如果没有需要保存的数据，直接返回
+            if (filteredMotorDataList.isEmpty()) {
+                logger.info("所有电机数据都已存在更新记录，无需保存");
+                return false;
+            }
+
+            // 保存过滤后的数据
+            int ret = mapper.insertOrUpdate(filteredMotorDataList);
+            session.commit();
+
+            MotorData firstMotorData = filteredMotorDataList.get(0);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = firstMotorData.getCollectTime().format(formatter);
+            logger.info("驱动电机数据已保存 - VIN:{}, collectTime:{}, 电机数量:{}, ret:{}",
+                    firstMotorData.getVin(), formattedTime, filteredMotorDataList.size(), ret);
+            return true;
+        } catch (Exception e) {
+            try {
+                MotorData firstMotorData = motorDataList.get(0);
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = firstMotorData.getCollectTime().format(formatter);
+                logger.error("保存驱动电机数据失败 - VIN:{}, collectTime:{}, 电机数量:{}",
+                        firstMotorData.getVin(), formattedTime, motorDataList.size(), e);
+            } catch (Exception ex) {
+                logger.error("保存驱动电机数据失败2", ex);
+            }
+            return false;
         }
     }
 }

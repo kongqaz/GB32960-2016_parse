@@ -3,9 +3,13 @@ package com.example.mapper;
 import com.example.entity.MotorData;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface MotorDataMapper {
+    @Select("SELECT COUNT(*) FROM motor_data WHERE vin = #{vin} AND motor_seq = #{motorSeq} AND collect_time >= #{collectTime} LIMIT 1")
+    int existsNewerRecordForMotor(@Param("vin") String vin, @Param("motorSeq") int motorSeq, @Param("collectTime") LocalDateTime collectTime);
+
     /**
      * 插入或更新驱动电机数据
      */

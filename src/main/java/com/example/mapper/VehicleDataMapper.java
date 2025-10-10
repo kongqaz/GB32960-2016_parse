@@ -3,6 +3,8 @@ package com.example.mapper;
 import com.example.entity.VehicleData;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDateTime;
+
 public interface VehicleDataMapper {
 
     /**
@@ -26,6 +28,9 @@ public interface VehicleDataMapper {
             "UNIQUE KEY uk_vin (vin)" +
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='GB32960整车数据表'")
     void createTable();
+
+    @Select("SELECT COUNT(*) FROM t_vehicle_data WHERE vin = #{vin} AND collect_time >= #{collectTime}")
+    int existsNewerRecord(@Param("vin") String vin, @Param("collectTime") LocalDateTime collectTime);
 
     /**
      * 插入或更新整车数据

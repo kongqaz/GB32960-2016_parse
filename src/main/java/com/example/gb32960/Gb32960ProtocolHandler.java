@@ -1405,7 +1405,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         vehicleData.setCollectTime(collectTime);
                         parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
                         pos += 20;
-                        databaseService.saveVehicleData(vehicleData);
+                        databaseService.saveVehicleDataWithTimeCheck(vehicleData);
                         break;
                     case 0x02:
                         List<MotorData> motorDataList = new ArrayList<>();
@@ -1414,7 +1414,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                             motorData.setVin(vin);
                             motorData.setCollectTime(collectTime);
                         }
-                        databaseService.saveMotorData(motorDataList);
+                        databaseService.saveMotorDataWithTimeCheck(motorDataList);
                         break;
                     case 0x03:
                         pos = parseFuelCellData(data, pos, offset + length, parsedData);
