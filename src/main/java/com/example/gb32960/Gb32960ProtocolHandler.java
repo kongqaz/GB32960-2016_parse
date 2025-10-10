@@ -1,5 +1,6 @@
 package com.example.gb32960;
 
+import com.example.entity.FuelCellData;
 import com.example.entity.MotorData;
 import com.example.entity.VehicleData;
 import com.example.service.DatabaseService;
@@ -502,9 +503,13 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         VehicleData vehicleData = new VehicleData();
                         vehicleData.setVin(vin);
                         vehicleData.setCollectTime(collectTime);
-                        parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
-                        pos += 20; // 整车数据固定20字节
-                        databaseService.saveVehicleData(vehicleData);
+                        boolean bParsed = parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
+                        if(bParsed) {
+                            pos += 20; // 整车数据固定20字节
+                            databaseService.saveVehicleData(vehicleData);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x02: // 驱动电机数据
                         List<MotorData> motorDataList = new ArrayList<>();
@@ -516,7 +521,14 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         databaseService.saveMotorData(motorDataList);
                         break;
                     case 0x03: // 燃料电池数据
-                        pos = parseFuelCellData(data, pos, offset + length, parsedData);
+                        FuelCellData fuelCellData = new FuelCellData();
+                        fuelCellData.setVin(vin);
+                        fuelCellData.setCollectTime(collectTime);
+                        int oldPos = pos;
+                        pos = parseFuelCellData(data, pos, offset + length, parsedData, fuelCellData);
+                        if(pos > oldPos) {
+                            databaseService.saveFuelCellData(fuelCellData);
+                        }
                         break;
                     case 0x04: // 发动机数据
                         parseEngineData(data, pos, offset + length, parsedData);
@@ -568,11 +580,11 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析整车数据（修复：增加异常值判断，按标准定义字段）
      */
-    private void parseVehicleData(byte[] data, int pos, int endMark, StringBuilder result, VehicleData vehicleData) {
+    private boolean parseVehicleData(byte[] data, int pos, int endMark, StringBuilder result, VehicleData vehicleData) {
         // 整车数据：20字节
         if (pos + 20 > endMark) {
             logger.error("整车数据长度不足，跳过解析");
-            return;
+            return false;
         }
 
         // 整车核心数据（按标准定义，增加异常值判断）
@@ -632,6 +644,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         vehicleData.setDcDcStatus((int) dcStatus & 0xFF);
         vehicleData.setGear(gearStr);
         vehicleData.setInsulationResistance(resistanceRaw);
+
+        return true;
     }
 
     private String getVehicleStatus(byte status) {
@@ -792,7 +806,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析燃料电池数据（修复：温度探针总数为2字节WORD类型，按标准解析）
      */
-    private int parseFuelCellData(byte[] data, int pos, int endMark, StringBuilder result) {
+    private int parseFuelCellData(byte[] data, int pos, int endMark, StringBuilder result, FuelCellData fuelCellData) {
         // 燃料电池基础数据长度：8字节（2电压+2电流+2消耗率+2探针数）
         if (pos + 8 > endMark) {
             logger.error("燃料电池数据长度不足（最小8字节），跳过解析");
@@ -826,19 +840,32 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
 //        result.append(String.format("\"maxPressure\":\"%s\"", maxPressureStr));
 
         // 解析探针温度（1字节/个）
-        if (probeCount > 0 && pos + probeCount <= endMark) {
+        StringBuilder tempsArray = new StringBuilder("[");
+        if (probeCount > 0 && probeCount != 0xFFFE && probeCount != 0xFFFF && pos + probeCount <= endMark) {
             result.append(",\"probeTemps\":[");
             for (int i = 0; i < probeCount; i++) {
                 int tempRaw = data[pos + i] & 0xFF;
                 String tempStr = (tempRaw == 0xFE) ? "异常" : (tempRaw == 0xFF) ? "无效" : String.valueOf(tempRaw - 40);
-                if (i > 0) result.append(",");
+                if (i > 0) {
+                    result.append(",");
+                    tempsArray.append(",");
+                }
                 result.append("\"").append(tempStr).append("\"");
+                tempsArray.append("\"").append(tempStr).append("\"");
             }
             result.append("]");
             pos += probeCount;
         }
 
         result.append("},");
+        tempsArray.append("]");
+
+        fuelCellData.setFuelVoltage(voltageStr);
+        fuelCellData.setFuelCurrent(currentStr);
+        fuelCellData.setFuelConsumption(consumptionStr);
+        fuelCellData.setProbeCount(probeCount);
+        fuelCellData.setProbeTemps(tempsArray.toString());
+
         return pos;
     }
 
@@ -1403,9 +1430,13 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         VehicleData vehicleData = new VehicleData();
                         vehicleData.setVin(vin);
                         vehicleData.setCollectTime(collectTime);
-                        parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
-                        pos += 20;
-                        databaseService.saveVehicleDataWithTimeCheck(vehicleData);
+                        boolean bParsed = parseVehicleData(data, pos, offset + length, parsedData, vehicleData);
+                        if(bParsed) {
+                            pos += 20;
+                            databaseService.saveVehicleDataWithTimeCheck(vehicleData);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x02:
                         List<MotorData> motorDataList = new ArrayList<>();
@@ -1417,7 +1448,14 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         databaseService.saveMotorDataWithTimeCheck(motorDataList);
                         break;
                     case 0x03:
-                        pos = parseFuelCellData(data, pos, offset + length, parsedData);
+                        FuelCellData fuelCellData = new FuelCellData();
+                        fuelCellData.setVin(vin);
+                        fuelCellData.setCollectTime(collectTime);
+                        int oldPos = pos;
+                        pos = parseFuelCellData(data, pos, offset + length, parsedData, fuelCellData);
+                        if(pos > oldPos) {
+                            databaseService.saveFuelCellDataWithTimeCheck(fuelCellData);
+                        }
                         break;
                     case 0x04:
                         parseEngineData(data, pos, offset + length, parsedData);

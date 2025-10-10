@@ -1,13 +1,11 @@
 package com.example.service;
 
 import com.example.Gb32960ParserApplication;
+import com.example.entity.FuelCellData;
 import com.example.entity.MotorData;
 import com.example.entity.RealTimeData;
 import com.example.entity.VehicleData;
-import com.example.mapper.MotorDataMapper;
-import com.example.mapper.RealTimeDataMapper;
-import com.example.mapper.VehicleDataMapper;
-import com.example.mapper.VehicleLoginLogoutMapper;
+import com.example.mapper.*;
 import com.typesafe.config.Config;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -228,6 +226,7 @@ public class DatabaseService {
 
     public void saveMotorData(List<MotorData> motorDataList) {
         if (motorDataList == null || motorDataList.isEmpty()) {
+            logger.warn("驱动电机数据为空");
             return;
         }
 
@@ -288,6 +287,7 @@ public class DatabaseService {
 
     public boolean saveMotorDataWithTimeCheck(List<MotorData> motorDataList) {
         if (motorDataList == null || motorDataList.isEmpty()) {
+            logger.warn("驱动电机数据为空");
             return false;
         }
 
@@ -342,6 +342,62 @@ public class DatabaseService {
                         firstMotorData.getVin(), formattedTime, motorDataList.size(), e);
             } catch (Exception ex) {
                 logger.error("保存驱动电机数据失败2", ex);
+            }
+            return false;
+        }
+    }
+
+    public void saveFuelCellData(FuelCellData fuelCellData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            FuelCellDataMapper mapper = session.getMapper(FuelCellDataMapper.class);
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(fuelCellData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = fuelCellData.getCollectTime().format(formatter);
+            logger.info("燃料电池数据已保存 - VIN:{}, collectTime:{}, ret:{}", fuelCellData.getVin(), formattedTime, ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = fuelCellData.getCollectTime().format(formatter);
+                logger.error("保存燃料电池数据失败 - VIN:{}, collectTime:{}", fuelCellData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存燃料电池数据失败2", ex);
+            }
+        }
+    }
+
+    public boolean saveFuelCellDataWithTimeCheck(FuelCellData fuelCellData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            FuelCellDataMapper mapper = session.getMapper(FuelCellDataMapper.class);
+
+            // 检查是否存在更新的记录
+            int newerRecordCount = mapper.existsNewerRecord(fuelCellData.getVin(), fuelCellData.getCollectTime());
+
+            if (newerRecordCount > 0) {
+                // 存在更新的记录，不保存当前数据
+                logger.info("存在更新的燃料电池数据记录，跳过保存 - VIN: {}, collectTime: {}",
+                        fuelCellData.getVin(), fuelCellData.getCollectTime());
+                return false;
+            }
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(fuelCellData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = fuelCellData.getCollectTime().format(formatter);
+            logger.info("燃料电池数据已保存 - VIN:{}, collectTime:{}, ret:{}", fuelCellData.getVin(), formattedTime, ret);
+            return true;
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = fuelCellData.getCollectTime().format(formatter);
+                logger.error("保存燃料电池数据失败 - VIN:{}, collectTime:{}", fuelCellData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存燃料电池数据失败2", ex);
             }
             return false;
         }
