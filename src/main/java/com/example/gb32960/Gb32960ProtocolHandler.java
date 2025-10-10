@@ -835,7 +835,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"fuelVoltage\":\"%s\",", voltageStr));
         result.append(String.format("\"fuelCurrent\":\"%s\",", currentStr));
         result.append(String.format("\"fuelConsumption\":\"%s\",", consumptionStr));
-        result.append(String.format("\"probeCount\":\"%s\",", probeCountStr));
+        result.append(String.format("\"probeCount\":\"%s\"", probeCountStr));
 //        result.append(String.format("\"maxTemp\":\"%s\",", maxTempStr));
 //        result.append(String.format("\"maxPressure\":\"%s\"", maxPressureStr));
 
@@ -857,8 +857,73 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
             pos += probeCount;
         }
 
-        result.append("},");
         tempsArray.append("]");
+
+        // 解析氢系统最高温度（2字节WORD）
+        if (pos + 2 <= endMark) {
+            int maxTempRaw = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            String maxTempStr = (maxTempRaw == 0xFFFE) ? "异常" : (maxTempRaw == 0xFFFF) ? "无效" : String.format("%.1f", maxTempRaw / 10.0f - 40);
+            result.append(String.format(",\"h2MaxTemp\":\"%s\"", maxTempStr));
+            pos += 2;
+            fuelCellData.setH2MaxTemp(maxTempStr);
+        }
+
+        // 解析氢系统最高温度探针代号（1字节BYTE）
+        if (pos + 1 <= endMark) {
+            int maxTempProbe = data[pos] & 0xFF;
+            String maxTempProbeStr = (maxTempProbe == 0xFE) ? "异常" : (maxTempProbe == 0xFF) ? "无效" : String.valueOf(maxTempProbe);
+            result.append(String.format(",\"h2MaxTempProbeCode\":\"%s\"", maxTempProbeStr));
+            pos++;
+            fuelCellData.setH2MaxTempProbeCode(maxTempProbe);
+        }
+
+        // 解析氢气最高浓度（2字节WORD）
+        if (pos + 2 <= endMark) {
+            int maxConcentrationRaw = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            String maxConcentrationStr = (maxConcentrationRaw == 0xFFFE) ? "异常" : (maxConcentrationRaw == 0xFFFF) ? "无效" : String.valueOf(maxConcentrationRaw);
+            result.append(String.format(",\"h2MaxConcentration\":\"%s\"", maxConcentrationStr));
+            pos += 2;
+            fuelCellData.setH2MaxConcentration(maxConcentrationRaw);
+        }
+
+        // 解析氢气最高浓度传感器代号（1字节BYTE）
+        if (pos + 1 <= endMark) {
+            int maxConcentrationSensor = data[pos] & 0xFF;
+            String maxConcentrationSensorStr = (maxConcentrationSensor == 0xFE) ? "异常" : (maxConcentrationSensor == 0xFF) ? "无效" : String.valueOf(maxConcentrationSensor);
+            result.append(String.format(",\"h2MaxConcentrationSensorCode\":\"%s\"", maxConcentrationSensorStr));
+            pos++;
+            fuelCellData.setH2MaxConcentrationSensorCode(maxConcentrationSensor);
+        }
+
+        // 解析氢气最高压力（2字节WORD）
+        if (pos + 2 <= endMark) {
+            int maxPressureRaw = ((data[pos] & 0xFF) << 8) | (data[pos + 1] & 0xFF);
+            String maxPressureStr = (maxPressureRaw == 0xFFFE) ? "异常" : (maxPressureRaw == 0xFFFF) ? "无效" : String.format("%.1f", maxPressureRaw / 10.0f);
+            result.append(String.format(",\"h2MaxPressure\":\"%s\"", maxPressureStr));
+            fuelCellData.setH2MaxPressure(maxPressureStr);
+            pos += 2;
+        }
+
+        // 解析氢气最高压力传感器代号（1字节BYTE）
+        if (pos + 1 <= endMark) {
+            int maxPressureSensor = data[pos] & 0xFF;
+            String maxPressureSensorStr = (maxPressureSensor == 0xFE) ? "异常" : (maxPressureSensor == 0xFF) ? "无效" : String.valueOf(maxPressureSensor);
+            result.append(String.format(",\"h2MaxPressureSensorCode\":\"%s\"", maxPressureSensorStr));
+            pos++;
+            fuelCellData.setH2MaxPressureSensorCode(maxPressureSensor);
+        }
+
+        // 解析高压DC/DC状态（1字节BYTE）
+        if (pos + 1 <= endMark) {
+            int dcStatus = data[pos] & 0xFF;
+            String dcStatusStr = (dcStatus == 0x01) ? "工作" : (dcStatus == 0x02) ? "断开" :
+                    (dcStatus == 0xFE) ? "异常" : (dcStatus == 0xFF) ? "无效" : String.valueOf(dcStatus);
+            result.append(String.format(",\"highVoltageDcDcStatus\":\"%s\"", dcStatusStr));
+            pos++;
+            fuelCellData.setHighVoltageDcDcStatus(dcStatus);
+        }
+
+        result.append("},");
 
         fuelCellData.setFuelVoltage(voltageStr);
         fuelCellData.setFuelCurrent(currentStr);
