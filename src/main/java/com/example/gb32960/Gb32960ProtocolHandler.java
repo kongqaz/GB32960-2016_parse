@@ -526,6 +526,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos = parseFuelCellData(data, pos, offset + length, parsedData, fuelCellData);
                         if(pos > oldPos) {
                             databaseService.saveFuelCellData(fuelCellData);
+                        } else {
+                            pos += 1;
                         }
                         break;
                     case 0x04: // 发动机数据
@@ -566,7 +568,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         }
                         break;
                     case 0x07: // 报警数据
-                        pos = parseAlarmData(data, pos, offset + length, parsedData);
+                        AlarmData alarmData = new AlarmData();
+                        alarmData.setVin(vin);
+                        alarmData.setCollectTime(collectTime);
+                        int oldAlarmPos = pos;
+                        pos = parseAlarmData(data, pos, offset + length, parsedData, alarmData);
+                        if(pos > oldAlarmPos){
+                            databaseService.saveAlarmData(alarmData, false);
+                        } else {
+                            pos += 1;
+                        }
                         break;
 //                    case INFO_TYPE_ENERGY_VOLTAGE: // 可充电储能装置电压数据（新增）
 //                        pos = parseEnergyVoltageData(data, pos, parsedData);
@@ -1112,13 +1123,11 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析报警数据（修复：解析故障代码列表，按标准处理多类型故障）
      */
-    private int parseAlarmData(byte[] data, int pos, int endMark, StringBuilder result) {
+    private int parseAlarmData(byte[] data, int pos, int endMark, StringBuilder result, AlarmData alarmData) {
         if (pos + 9 > endMark) {
             logger.error("报警数据长度不足（最小9字节），跳过解析");
             return pos;
         }
-
-        boolean bHasAlarm = false;
 
         // 解析基础报警字段
         int maxAlarmLevel = data[pos] & 0xFF;
@@ -1134,87 +1143,98 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"maxAlarmLevel\":\"%s\"", maxAlarmLevelStr));
         List<String> alarmTypes = parseGeneralAlarm(generalAlarm);
         if(!alarmTypes.isEmpty()){
-            bHasAlarm = true;
             result.append(String.format(",\"alarmTypes\":\"%s\"", String.join(",", alarmTypes)));
         }
+
+        alarmData.setMaxAlarmLevel(maxAlarmLevel);
+        alarmData.setAlarmTypes(String.join(",", alarmTypes));
 
         // 解析可充电储能装置故障（1字节个数 + N×4字节故障代码）
         if (pos + 1 <= endMark) {
             int energyFaultCount = data[pos] & 0xFF;
+            alarmData.setEnergyStorageFaultCount(energyFaultCount);
             pos++;
+            List<String> energyStorageFaults = new ArrayList<>();
             if (energyFaultCount > 0 && energyFaultCount < 0xFE && pos + energyFaultCount * 4 <= endMark) {
-                bHasAlarm = true;
                 result.append(",\"energyStorageFaults\":[");
                 for (int i = 0; i < energyFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
                     result.append(String.format("\"%d\"", faultCode));
+                    energyStorageFaults.add(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += energyFaultCount * 4;
             }
+            alarmData.setEnergyStorageFaults(String.format("[%s]", String.join(",", energyStorageFaults)));
         }
 
         // 解析驱动电机故障
         if (pos + 1 <= endMark) {
             int motorFaultCount = data[pos] & 0xFF;
+            alarmData.setMotorFaultCount(motorFaultCount);
             pos++;
+            List<String> motorFaults = new ArrayList<>();
             if (motorFaultCount > 0 && motorFaultCount < 0xFE && pos + motorFaultCount * 4 <= endMark) {
-                bHasAlarm = true;
                 result.append(",\"motorFaults\":[");
                 for (int i = 0; i < motorFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
                     result.append(String.format("\"%d\"", faultCode));
+                    motorFaults.add(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += motorFaultCount * 4;
             }
+            alarmData.setMotorFaults(String.format("[%s]", String.join(",", motorFaults)));
         }
 
         // 解析发动机故障
         if (pos + 1 <= endMark) {
             int engineFaultCount = data[pos] & 0xFF;
+            alarmData.setEngineFaultCount(engineFaultCount);
             pos++;
+            List<String> engineFaults = new ArrayList<>();
             if (engineFaultCount > 0 && engineFaultCount < 0xFE && pos + engineFaultCount * 4 <= endMark) {
-                bHasAlarm = true;
                 result.append(",\"engineFaults\":[");
                 for (int i = 0; i < engineFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
                     result.append(String.format("\"%d\"", faultCode));
+                    engineFaults.add(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += engineFaultCount * 4;
             }
+            alarmData.setEngineFaults(String.format("[%s]", String.join(",", engineFaults)));
         }
 
         // 解析其他故障
         if (pos + 1 <= endMark) {
             int otherFaultCount = data[pos] & 0xFF;
+            alarmData.setOtherFaultCount(otherFaultCount);
             pos++;
+            List<String> otherFaults = new ArrayList<>();
             if (otherFaultCount > 0 && otherFaultCount < 0xFE && pos + otherFaultCount * 4 <= endMark) {
-                bHasAlarm = true;
                 result.append(",\"otherFaults\":[");
                 for (int i = 0; i < otherFaultCount; i++) {
                     long faultCode = ((long) (data[pos + i * 4] & 0xFF) << 24) | ((data[pos + i * 4 + 1] & 0xFF) << 16) |
                             ((data[pos + i * 4 + 2] & 0xFF) << 8) | (data[pos + i * 4 + 3] & 0xFF);
                     if (i > 0) result.append(",");
                     result.append(String.format("\"%d\"", faultCode));
+                    otherFaults.add(String.format("\"%d\"", faultCode));
                 }
                 result.append("]");
                 pos += otherFaultCount * 4;
             }
+            alarmData.setOtherFaults(String.format("[%s]", String.join(",", otherFaults)));
         }
 
         result.append("},");
 
-        if(bHasAlarm){
-            //TODO: 报错报警数据到mysql
-        }
         return pos;
     }
 
@@ -1573,6 +1593,8 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         pos = parseFuelCellData(data, pos, offset + length, parsedData, fuelCellData);
                         if(pos > oldPos) {
                             databaseService.saveFuelCellDataWithTimeCheck(fuelCellData);
+                        } else {
+                            pos += 1;
                         }
                         break;
                     case 0x04:
@@ -1612,7 +1634,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         }
                         break;
                     case 0x07:
-                        pos = parseAlarmData(data, pos, offset + length, parsedData);
+                        AlarmData alarmData = new AlarmData();
+                        alarmData.setVin(vin);
+                        alarmData.setCollectTime(collectTime);
+                        int oldAlarmPos = pos;
+                        pos = parseAlarmData(data, pos, offset + length, parsedData, alarmData);
+                        if(pos > oldAlarmPos) {
+                            databaseService.saveAlarmData(alarmData, true);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     default:
                         logger.warn("未知信息类型标志: 0x{}，跳过", String.format("%02X", infoType));

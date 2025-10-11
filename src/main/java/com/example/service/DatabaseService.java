@@ -548,4 +548,40 @@ public class DatabaseService {
             return false;
         }
     }
+
+    public void saveAlarmData(AlarmData alarmData, boolean bTimeCheck) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            AlarmDataMapper mapper = session.getMapper(AlarmDataMapper.class);
+
+            // 检查是否存在更新的记录
+            int count = 0;
+            if(bTimeCheck) {
+                count = mapper.existsNewerRecord(alarmData.getVin(), alarmData.getCollectTime());
+            }
+            if (count == 0) {
+                // 没有更新的记录，执行插入或更新
+                int ret = mapper.insertOrUpdate(alarmData);
+                session.commit();
+
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = alarmData.getCollectTime().format(formatter);
+                logger.info("报警数据已保存 - VIN:{}, collectTime:{}, ret:{}",
+                        alarmData.getVin(), formattedTime, ret);
+            } else {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = alarmData.getCollectTime().format(formatter);
+                logger.info("存在更新的报警数据，忽略当前数据 - VIN:{}, collectTime:{}",
+                        alarmData.getVin(), formattedTime);
+            }
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = alarmData.getCollectTime().format(formatter);
+                logger.error("保存报警数据失败 - VIN:{}, collectTime:{}",
+                        alarmData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存报警数据失败2", ex);
+            }
+        }
+    }
 }
