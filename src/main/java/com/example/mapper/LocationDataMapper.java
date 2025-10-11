@@ -16,7 +16,8 @@ public interface LocationDataMapper {
             "collect_time = VALUES(collect_time), " +
             "location_valid = VALUES(location_valid), " +
             "longitude = VALUES(longitude), " +
-            "latitude = VALUES(latitude)")
+            "latitude = VALUES(latitude), " +
+            "updated_at = CURRENT_TIMESTAMP")
     int insertOrUpdate(LocationData locationData);
 
     @Select("SELECT * FROM t_location_data WHERE vin = #{vin}")

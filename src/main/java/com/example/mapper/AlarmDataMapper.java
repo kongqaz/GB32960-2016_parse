@@ -58,6 +58,7 @@ public interface AlarmDataMapper {
             "engine_fault_count = VALUES(engine_fault_count), " +
             "engine_faults = VALUES(engine_faults), " +
             "other_fault_count = VALUES(other_fault_count), " +
-            "other_faults = VALUES(other_faults)")
+            "other_faults = VALUES(other_faults), " +
+            "updated_at = CURRENT_TIMESTAMP")
     int insertOrUpdate(AlarmData alarmData);
 }

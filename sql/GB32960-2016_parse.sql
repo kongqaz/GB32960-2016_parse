@@ -156,11 +156,11 @@ CREATE TABLE `t_alarm_data` (
     `energy_storage_fault_count` TINYINT UNSIGNED DEFAULT NULL COMMENT '可充电储能装置故障总数：范围:0~252, 0xFE=异常，0xFF=无效',
     `energy_storage_faults` TEXT DEFAULT NULL COMMENT '可充电储能装置故障代码的数组，JSON格式存储，例如["158974578","158748978"]',
     `motor_fault_count` TINYINT UNSIGNED DEFAULT NULL COMMENT '驱动电机故障总数：范围:0~252, 0xFE=异常，0xFF=无效',
-    `motorFaults` TEXT DEFAULT NULL COMMENT '驱动电机故障代码的数组，JSON格式存储',
-    `engineFaultCount` TINYINT UNSIGNED DEFAULT NULL COMMENT '发动机故障总数：范围:0~252, 0xFE=异常，0xFF=无效',
-    `engineFaults` TEXT DEFAULT NULL COMMENT '发动机故障代码的数组，JSON格式存储',
-    `otherFaultCount` TINYINT UNSIGNED DEFAULT NULL COMMENT '其他故障总数：范围:0~252, 0xFE=异常，0xFF=无效',
-    `otherFaults` TEXT DEFAULT NULL COMMENT '其他故障代码的数组，JSON格式存储',
+    `motor_faults` TEXT DEFAULT NULL COMMENT '驱动电机故障代码的数组，JSON格式存储',
+    `engine_fault_count` TINYINT UNSIGNED DEFAULT NULL COMMENT '发动机故障总数：范围:0~252, 0xFE=异常，0xFF=无效',
+    `engine_faults` TEXT DEFAULT NULL COMMENT '发动机故障代码的数组，JSON格式存储',
+    `other_fault_count` TINYINT UNSIGNED DEFAULT NULL COMMENT '其他故障总数：范围:0~252, 0xFE=异常，0xFF=无效',
+    `other_faults` TEXT DEFAULT NULL COMMENT '其他故障代码的数组，JSON格式存储',
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     
     -- 唯一索引

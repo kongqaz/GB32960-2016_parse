@@ -8,9 +8,7 @@ import org.apache.ibatis.annotations.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Mapper
 public interface ExtremeDataMapper {
-
     /**
      * 创建极值数据表
      */
@@ -61,6 +59,7 @@ public interface ExtremeDataMapper {
             "highest_temp_value = VALUES(highest_temp_value), " +
             "lowest_temp_system_no = VALUES(lowest_temp_system_no), " +
             "lowest_temp_probe_no = VALUES(lowest_temp_probe_no), " +
-            "lowest_temp_value = VALUES(lowest_temp_value)")
+            "lowest_temp_value = VALUES(lowest_temp_value), " +
+            "updated_at = CURRENT_TIMESTAMP")
     int insertOrUpdate(ExtremeData extremeData);
 }

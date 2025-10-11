@@ -15,7 +15,8 @@
         VALUES (#{vin}, #{serialNo}, #{loginTime})
         ON DUPLICATE KEY UPDATE
         login_serial_no = #{serialNo},
-        login_time = #{loginTime};
+        login_time = #{loginTime},
+        updated_at = CURRENT_TIMESTAMP;
     </insert>
 
     <update id="updateLogout">

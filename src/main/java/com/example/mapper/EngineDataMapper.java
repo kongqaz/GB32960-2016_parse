@@ -15,7 +15,8 @@ public interface EngineDataMapper {
             "collect_time = VALUES(collect_time), " +
             "engine_status = VALUES(engine_status), " +
             "crankshaft_speed = VALUES(crankshaft_speed), " +
-            "fuel_consumption = VALUES(fuel_consumption)")
+            "fuel_consumption = VALUES(fuel_consumption), " +
+            "updated_at = CURRENT_TIMESTAMP")
     int insertOrUpdate(EngineData engineData);
 
     @Select("SELECT * FROM t_engine_data WHERE vin = #{vin}")

@@ -80,6 +80,12 @@ public class DatabaseService {
 //            InputStream inputStream = Resources.getResourceAsStream(resource);
             org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration(environment);
 
+            configuration.addMapper(AlarmDataMapper.class);
+            configuration.addMapper(EngineDataMapper.class);
+            configuration.addMapper(ExtremeDataMapper.class);
+            configuration.addMapper(FuelCellDataMapper.class);
+            configuration.addMapper(LocationDataMapper.class);
+
             // 解析 XML 配置文件
 //            XMLConfigBuilder xmlConfigBuilder = new XMLConfigBuilder(inputStream);
 //            org.apache.ibatis.session.Configuration parsedConfiguration = xmlConfigBuilder.parse();
