@@ -554,8 +554,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         }
                         break;
                     case 0x06: // 极值数据
-                        parseExtremeData(data, pos, offset + length, parsedData);
-                        pos += 14;
+                        ExtremeData extremeData = new ExtremeData();
+                        extremeData.setVin(vin);
+                        extremeData.setCollectTime(collectTime);
+                        boolean bExtremeParsed = parseExtremeData(data, pos, offset + length, parsedData, extremeData);
+                        if(bExtremeParsed) {
+                            pos += 14;
+                            databaseService.saveExtremeData(extremeData, false);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x07: // 报警数据
                         pos = parseAlarmData(data, pos, offset + length, parsedData);
@@ -1035,10 +1043,10 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析极值数据（按标准处理偏移量与异常值）
      */
-    private void parseExtremeData(byte[] data, int pos, int endMark, StringBuilder result) {
+    private boolean parseExtremeData(byte[] data, int pos, int endMark, StringBuilder result, ExtremeData extremeData) {
         if (pos + 14 > endMark) {
             logger.error("极值数据长度不足（14字节），跳过解析");
-            return;
+            return false;
         }
 
         // 解析字段
@@ -1084,6 +1092,21 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"minTempProbe\":\"%s\",", minTempProbeStr));
         result.append(String.format("\"minTemp\":\"%s\"", minTempStr));
         result.append("},");
+
+        extremeData.setHighestVoltageSystemNo(maxVoltSys);
+        extremeData.setHighestVoltageCellNo(maxVoltCell);
+        extremeData.setHighestCellVoltage(maxVoltStr);
+        extremeData.setLowestVoltageSystemNo(minVoltSys);
+        extremeData.setLowestVoltageCellNo(minVoltCell);
+        extremeData.setLowestCellVoltage(minVoltStr);
+        extremeData.setHighestTempSystemNo(maxTempSys);
+        extremeData.setHighestTempProbeNo(maxTempProbe);
+        extremeData.setHighestTempValue(maxTempRaw - 40);
+        extremeData.setLowestTempSystemNo(minTempSys);
+        extremeData.setLowestTempProbeNo(minTempProbe);
+        extremeData.setLowestTempValue(minTempRaw - 40);
+
+        return true;
     }
 
     /**
@@ -1577,8 +1600,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         }
                         break;
                     case 0x06:
-                        parseExtremeData(data, pos, offset + length, parsedData);
-                        pos += 14;
+                        ExtremeData extremeData = new ExtremeData();
+                        extremeData.setVin(vin);
+                        extremeData.setCollectTime(collectTime);
+                        boolean bExtremeParsed = parseExtremeData(data, pos, offset + length, parsedData, extremeData);
+                        if(bExtremeParsed) {
+                            pos += 14;
+                            databaseService.saveExtremeData(extremeData, true);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x07:
                         pos = parseAlarmData(data, pos, offset + length, parsedData);

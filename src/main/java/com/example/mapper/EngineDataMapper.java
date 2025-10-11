@@ -9,7 +9,7 @@ public interface EngineDataMapper {
     @Select("SELECT COUNT(*) FROM t_engine_data WHERE vin = #{vin} AND collect_time >= #{collectTime}")
     int existsNewerRecord(@Param("vin") String vin, @Param("collectTime") LocalDateTime collectTime);
 
-    @Insert("INSERT INTO t_engine_data (vid, collect_time, engine_status, crankshaft_speed, fuel_consumption) " +
+    @Insert("INSERT INTO t_engine_data (vin, collect_time, engine_status, crankshaft_speed, fuel_consumption) " +
             "VALUES (#{vin}, #{collectTime}, #{engineStatus}, #{crankshaftSpeed}, #{fuelConsumption}) " +
             "ON DUPLICATE KEY UPDATE " +
             "collect_time = VALUES(collect_time), " +
@@ -18,6 +18,6 @@ public interface EngineDataMapper {
             "fuel_consumption = VALUES(fuel_consumption)")
     int insertOrUpdate(EngineData engineData);
 
-    @Select("SELECT * FROM t_engine_data WHERE vid = #{vin}")
+    @Select("SELECT * FROM t_engine_data WHERE vin = #{vin}")
     EngineData selectByVin(String vin);
 }

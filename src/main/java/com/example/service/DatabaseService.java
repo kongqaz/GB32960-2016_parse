@@ -512,4 +512,40 @@ public class DatabaseService {
             return false;
         }
     }
+
+    public boolean saveExtremeData(ExtremeData extremeData, boolean bTimeCheck) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            ExtremeDataMapper mapper = session.getMapper(ExtremeDataMapper.class);
+
+            if(bTimeCheck) {
+                // 检查是否存在更新的记录
+                int newerRecordCount = mapper.existsNewerRecord(extremeData.getVin(), extremeData.getCollectTime());
+
+                if (newerRecordCount > 0) {
+                    // 存在更新的记录，不保存当前数据
+                    logger.info("存在更新的极值数据记录，跳过保存 - VIN: {}, collectTime: {}",
+                            extremeData.getVin(), extremeData.getCollectTime());
+                    return false;
+                }
+            }
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(extremeData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = extremeData.getCollectTime().format(formatter);
+            logger.info("极值数据已保存 - VIN:{}, collectTime:{}, ret:{}", extremeData.getVin(), formattedTime, ret);
+            return true;
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = extremeData.getCollectTime().format(formatter);
+                logger.error("保存极值数据失败 - VIN:{}, collectTime:{}", extremeData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存极值数据失败2", ex);
+            }
+            return false;
+        }
+    }
 }
