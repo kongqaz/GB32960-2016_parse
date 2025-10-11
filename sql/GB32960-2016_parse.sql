@@ -170,6 +170,29 @@ CREATE TABLE `t_alarm_data` (
     INDEX `idx_vin_collect_time` (`vin`, `collect_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报警数据表';
 
+-- 车辆的在线情况视图
+CREATE OR REPLACE VIEW v_vehicle_online_status AS
+SELECT
+    tvll.id AS id,
+    tvll.vin AS vin,
+    -- 核心逻辑：满足任一离线条件则为0（离线），否则为1（在线）
+    IF(
+        -- 离线条件1：logout_time存在且大于login_time（已登出）
+        (tvll.logout_time IS NOT NULL AND tvll.login_time IS NOT NULL AND tvll.logout_time > tvll.login_time)
+        OR
+        -- 离线条件2：real_time_data有更新时间，且更新时间早于当前时间1分钟及以上（超时离线）
+        (rtd.update_time IS NOT NULL AND STR_TO_DATE(rtd.update_time, '%Y-%m-%d %H:%i:%s.%f') <= DATE_SUB(NOW(), INTERVAL 1 MINUTE))
+		OR
+		(rtd.update_time IS NULL),
+        0,  -- 满足任一离线条件 → 离线
+        1   -- 不满足任何离线条件 → 在线
+    ) AS isAlive
+FROM
+    t_vehicle_login_logout tvll
+-- 左关联实时数据表（确保即使无实时数据也能显示车辆基础信息）
+LEFT JOIN real_time_data rtd 
+    ON tvll.vin = rtd.vin;
+
 
 
 
