@@ -1,10 +1,7 @@
 package com.example.service;
 
 import com.example.Gb32960ParserApplication;
-import com.example.entity.FuelCellData;
-import com.example.entity.MotorData;
-import com.example.entity.RealTimeData;
-import com.example.entity.VehicleData;
+import com.example.entity.*;
 import com.example.mapper.*;
 import com.typesafe.config.Config;
 import com.zaxxer.hikari.HikariConfig;
@@ -398,6 +395,119 @@ public class DatabaseService {
                 logger.error("保存燃料电池数据失败 - VIN:{}, collectTime:{}", fuelCellData.getVin(), formattedTime, e);
             } catch (Exception ex) {
                 logger.error("保存燃料电池数据失败2", ex);
+            }
+            return false;
+        }
+    }
+
+    public void saveEngineData(EngineData engineData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            EngineDataMapper mapper = session.getMapper(EngineDataMapper.class);
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(engineData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = engineData.getCollectTime().format(formatter);
+            logger.info("发动机数据已保存 - VIN:{}, collectTime:{}, ret:{}", engineData.getVin(), formattedTime, ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = engineData.getCollectTime().format(formatter);
+                logger.error("保存发动机数据失败 - VIN:{}, collectTime:{}", engineData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存发动机数据失败2", ex);
+            }
+        }
+    }
+
+    public boolean saveEngineDataWithTimeCheck(EngineData engineData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            EngineDataMapper mapper = session.getMapper(EngineDataMapper.class);
+
+            // 检查是否存在更新的记录
+            int newerRecordCount = mapper.existsNewerRecord(engineData.getVin(), engineData.getCollectTime());
+
+            if (newerRecordCount > 0) {
+                // 存在更新的记录，不保存当前数据
+                logger.info("存在更新的发动机数据记录，跳过保存 - VIN: {}, collectTime: {}",
+                        engineData.getVin(), engineData.getCollectTime());
+                return false;
+            }
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(engineData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = engineData.getCollectTime().format(formatter);
+            logger.info("发动机数据已保存 - VIN:{}, collectTime:{}, ret:{}", engineData.getVin(), formattedTime, ret);
+            return true;
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = engineData.getCollectTime().format(formatter);
+                logger.error("保存发动机数据失败 - VIN:{}, collectTime:{}", engineData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存发动机数据失败2", ex);
+            }
+            return false;
+        }
+    }
+
+    // 在类中添加以下方法
+    public void saveLocationData(LocationData locationData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            LocationDataMapper mapper = session.getMapper(LocationDataMapper.class);
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(locationData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = locationData.getCollectTime().format(formatter);
+            logger.info("车辆位置数据已保存 - VIN:{}, collectTime:{}, ret:{}", locationData.getVin(), formattedTime, ret);
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = locationData.getCollectTime().format(formatter);
+                logger.error("保存车辆位置数据失败 - VIN:{}, collectTime:{}", locationData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存车辆位置数据失败2", ex);
+            }
+        }
+    }
+
+    public boolean saveLocationDataWithTimeCheck(LocationData locationData) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            LocationDataMapper mapper = session.getMapper(LocationDataMapper.class);
+
+            // 检查是否存在更新的记录
+            int newerRecordCount = mapper.existsNewerRecord(locationData.getVin(), locationData.getCollectTime());
+
+            if (newerRecordCount > 0) {
+                // 存在更新的记录，不保存当前数据
+                logger.info("存在更新的车辆位置数据记录，跳过保存 - VIN: {}, collectTime: {}",
+                        locationData.getVin(), locationData.getCollectTime());
+                return false;
+            }
+
+            // 保存数据
+            int ret = mapper.insertOrUpdate(locationData);
+            session.commit();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String formattedTime = locationData.getCollectTime().format(formatter);
+            logger.info("车辆位置数据已保存 - VIN:{}, collectTime:{}, ret:{}", locationData.getVin(), formattedTime, ret);
+            return true;
+        } catch (Exception e) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String formattedTime = locationData.getCollectTime().format(formatter);
+                logger.error("保存车辆位置数据失败 - VIN:{}, collectTime:{}", locationData.getVin(), formattedTime, e);
+            } catch (Exception ex) {
+                logger.error("保存车辆位置数据失败2", ex);
             }
             return false;
         }

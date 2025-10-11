@@ -1,8 +1,6 @@
 package com.example.gb32960;
 
-import com.example.entity.FuelCellData;
-import com.example.entity.MotorData;
-import com.example.entity.VehicleData;
+import com.example.entity.*;
 import com.example.service.DatabaseService;
 import com.typesafe.config.Config;
 //import io.netty.buffer.ByteBuf;
@@ -496,7 +494,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                 if (pos + 1 > offset + length) break;
                 byte infoType = data[pos];
                 pos++;
-
+                logger.info("实时数据类型:{}", infoType);
                 // 【修复问题2：补充可充电储能装置电压/温度数据解析】
                 switch (infoType) {
                     case 0x01: // 整车数据
@@ -531,13 +529,29 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         }
                         break;
                     case 0x04: // 发动机数据
-                        parseEngineData(data, pos, offset + length, parsedData);
-                        pos += 5;
+                        EngineData engineData = new EngineData();
+                        engineData.setVin(vin);
+                        engineData.setCollectTime(collectTime);
+                        boolean bEngineParsed = parseEngineData(data, pos, offset + length, parsedData, engineData);
+                        if(bEngineParsed) {
+                            pos += 5;
+                            databaseService.saveEngineData(engineData);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x05: // 车辆位置数据
                         // 【修复问题5：处理定位有效性与历史数据】
-                        parseLocationData(data, pos, offset + length, parsedData);
-                        pos += 9;
+                        LocationData locationData = new LocationData();
+                        locationData.setVin(vin);
+                        locationData.setCollectTime(collectTime);
+                        boolean bLocationParsed = parseLocationData(data, pos, offset + length, parsedData, locationData);
+                        if(bLocationParsed) {
+                            pos += 9;
+                            databaseService.saveLocationData(locationData);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x06: // 极值数据
                         parseExtremeData(data, pos, offset + length, parsedData);
@@ -937,10 +951,10 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析发动机数据（按标准定义）
      */
-    private void parseEngineData(byte[] data, int pos, int endMark, StringBuilder result) {
+    private boolean parseEngineData(byte[] data, int pos, int endMark, StringBuilder result, EngineData engineData) {
         if (pos + 5 > endMark) {
             logger.error("发动机数据长度不足（5字节），跳过解析");
-            return;
+            return false;
         }
 
         byte status = data[pos];
@@ -958,6 +972,12 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"crankshaftSpeed\":\"%s\",", crankshaftSpeedStr));
         result.append(String.format("\"fuelConsumption\":\"%s\"", consumptionStr));
         result.append("},");
+
+        engineData.setEngineStatus(status & 0xFF);
+        engineData.setCrankshaftSpeed(crankshaftSpeedRaw);
+        engineData.setFuelConsumption(consumptionStr);
+
+        return true;
     }
 
     private String getEngineStatus(byte engineStatus) {
@@ -973,10 +993,10 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析车辆位置数据（按标准处理经纬度偏移）
      */
-    private void parseLocationData(byte[] data, int pos, int endMark, StringBuilder result) {
+    private boolean parseLocationData(byte[] data, int pos, int endMark, StringBuilder result, LocationData locationData) {
         if (pos + 9 > endMark) {
             logger.error("车辆位置数据长度不足（9字节），跳过解析");
-            return;
+            return false;
         }
 
         byte locationStatus = data[pos];
@@ -1000,6 +1020,16 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
         result.append(String.format("\"longitude\":\"%.6f%s\",", longitude, lonDir));
         result.append(String.format("\"latitude\":\"%.6f%s\"", latitude, latDir));
         result.append("},");
+
+        byte byteValid = 1;
+        if(valid) {
+            byteValid = 0;
+        }
+        locationData.setLocationValid(byteValid);
+        locationData.setLongitude(String.format("%.6f%s", longitude, lonDir));
+        locationData.setLatitude(String.format("%.6f%s", latitude, latDir));
+
+        return true;
     }
 
     /**
@@ -1489,7 +1519,7 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                 if (pos + 1 > offset + length) break;
                 byte infoType = data[pos];
                 pos++;
-
+                logger.info("补发数据类型:{}", infoType);
                 switch (infoType) {
                     case 0x01:
                         VehicleData vehicleData = new VehicleData();
@@ -1523,12 +1553,28 @@ public class Gb32960ProtocolHandler extends ChannelInboundHandlerAdapter {
                         }
                         break;
                     case 0x04:
-                        parseEngineData(data, pos, offset + length, parsedData);
-                        pos += 5;
+                        EngineData engineData = new EngineData();
+                        engineData.setVin(vin);
+                        engineData.setCollectTime(collectTime);
+                        boolean bEngineParsed = parseEngineData(data, pos, offset + length, parsedData, engineData);
+                        if(bEngineParsed){
+                            pos += 5;
+                            databaseService.saveEngineDataWithTimeCheck(engineData);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x05:
-                        parseLocationData(data, pos, offset + length, parsedData);
-                        pos += 9;
+                        LocationData locationData = new LocationData();
+                        locationData.setVin(vin);
+                        locationData.setCollectTime(collectTime);
+                        boolean bLocationParsed = parseLocationData(data, pos, offset + length, parsedData, locationData);
+                        if(bLocationParsed) {
+                            pos += 9;
+                            databaseService.saveLocationDataWithTimeCheck(locationData);
+                        } else {
+                            pos += 1;
+                        }
                         break;
                     case 0x06:
                         parseExtremeData(data, pos, offset + length, parsedData);
